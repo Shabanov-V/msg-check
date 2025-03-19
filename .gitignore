@@ -3,3 +3,4 @@
 .env
 *.db
 *.session
+*.session-journal
