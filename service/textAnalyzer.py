@@ -2,6 +2,7 @@ from google import genai
 from google.genai import types
 import time
 import sys
+from datetime import datetime
 
 class TextAnalyzer:
     def __init__(self, key, base_prompt):
@@ -22,9 +23,10 @@ class TextAnalyzer:
                     contents=[text]
                 )
             except Exception as e:
-                sys.stderr.write("Failed to get response: {}".format(e))
-                time.sleep(10)
-                print("Attempt #{}".format(attempt))
+                if (e.code != 429):
+                    sys.stderr.write("Attempt #{}\n".format(attempt))
+                    sys.stderr.write("{}: Failed to get response: {}\n".format(datetime.now(), e))
+                time.sleep(30)
                 continue
         if response is None:
             raise Exception("Failed to get response")

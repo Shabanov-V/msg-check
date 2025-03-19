@@ -11,7 +11,7 @@ client = TelegramClient('main', env.telegram_api_id, env.telegram_api_hash)
 async def main():
     # Init
     textAnalyzer = TextAnalyzer(env.gemini_key, env.base_prompt)
-    await client.sign_in()
+    await client.start()
     messageServiceDB = MessageServiceDB()
     
 
@@ -39,7 +39,6 @@ async def main():
         try:
             response = textAnalyzer.findMessages(str(messages_text))
         except Exception as e:
-            print("Send exception")
             await client.send_message(PeerChannel(env.error_dialog_id), 'Error processing messages from dialog {}, \nError: {}'.format(dialog_name, e))
             continue
         messageServiceDB.update_last_processed_message(dialog_id, messages[0].id, messages[-1].date)
@@ -48,7 +47,6 @@ async def main():
         total_messages_found += len(response)
         messages_found = await client.get_messages(dialog_id, ids=response)
         for message_found in messages_found:
-            print("Forward message from: {}".format(dialog_name))
             await client.forward_messages(PeerChannel(env.output_dialog_id), message_found)
 
     await client.send_message(PeerChannel(env.error_dialog_id), 'Execution completed.\nMessages processed: {},\nMessages found: {}'.format(total_messages_processed, total_messages_found))

@@ -4,3 +4,4 @@
 *.db
 *.session
 *.session-journal
+*.txt
