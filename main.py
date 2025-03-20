@@ -47,6 +47,7 @@ async def main():
         total_messages_found += len(response)
         messages_found = await client.get_messages(dialog_id, ids=response)
         for message_found in messages_found:
+            await client.send_message(PeerChannel(env.output_dialog_id), 'Message found in dialog {}.\n Time: {}'.format(dialog_name, message_found.date.strftime('%Y-%m-%d %H:%M:%S')))
             await client.forward_messages(PeerChannel(env.output_dialog_id), message_found)
 
     await client.send_message(PeerChannel(env.error_dialog_id), 'Execution completed.\nMessages processed: {},\nMessages found: {}'.format(total_messages_processed, total_messages_found))

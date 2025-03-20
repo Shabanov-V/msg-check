@@ -31,7 +31,7 @@ class TextAnalyzer:
         if response is None:
             raise Exception("Failed to get response")
             
-        print("AI Response: ", response.text)
+        print("{}: AI Response: {}".format(datetime.now(), response.text))
         return response
 
     def findMessages(self, text):
