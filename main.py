@@ -3,10 +3,13 @@ from model.envLoader import EnvLoader
 from service.textAnalyzer import TextAnalyzer
 from telethon.tl import functions
 from service.messageServiceDB import MessageServiceDB
-from telethon.tl.types import PeerChannel, PeerChat
+from telethon.tl.types import PeerChannel
+from datetime import datetime, timedelta
+from service.util import Util
 
 env = EnvLoader()
 client = TelegramClient('main', env.telegram_api_id, env.telegram_api_hash)
+
 
 async def main():
     # Init
@@ -24,11 +27,13 @@ async def main():
     total_messages_processed = 0
     total_messages_found = 0
     for dialog_id in target_dialog_ids:
-        # Get last processed message from dialog
         last_processed_message = messageServiceDB.get_last_processed_message(dialog_id)
         if last_processed_message is None:
             last_processed_message = -1
-        messages = await client.get_messages(PeerChannel(dialog_id), min_id=last_processed_message, limit=1000)
+
+        messages = await client.get_messages(PeerChannel(dialog_id), min_id=last_processed_message, limit=10000)
+        messages = list(filter(lambda m: m.date.timestamp() > (datetime.now() - timedelta(days=1)).timestamp(), messages))
+
         if not messages:
             continue
         total_messages_processed += len(messages)
@@ -41,14 +46,12 @@ async def main():
         except Exception as e:
             await client.send_message(PeerChannel(env.error_dialog_id), 'Error processing messages from dialog {}, \nError: {}'.format(dialog_name, e))
             continue
+        if response is not None:
+            total_messages_found += len(response)
+            messages_found = list(filter(lambda m: m.id in response, messages))
+            for message_found in messages_found:
+                await Util.send_message_report(client, message_found, env.output_dialog_id)
         messageServiceDB.update_last_processed_message(dialog_id, messages[0].id, messages[-1].date)
-        if response is None:
-            continue
-        total_messages_found += len(response)
-        messages_found = await client.get_messages(dialog_id, ids=response)
-        for message_found in messages_found:
-            await client.send_message(PeerChannel(env.output_dialog_id), 'Message found in dialog {}.\n Time: {}'.format(dialog_name, message_found.date.strftime('%Y-%m-%d %H:%M:%S')))
-            await client.forward_messages(PeerChannel(env.output_dialog_id), message_found)
 
     await client.send_message(PeerChannel(env.error_dialog_id), 'Execution completed.\nMessages processed: {},\nMessages found: {}'.format(total_messages_processed, total_messages_found))
 
