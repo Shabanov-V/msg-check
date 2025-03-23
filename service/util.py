@@ -12,9 +12,13 @@ class Util:
             return None
         
         message_link = Util.get_message_link(message)
+
+        message_sent = False
         if (type(message.from_id) is PeerUser):
             await client.send_message(PeerChannel(dialog_id), message_link, link_preview=True)
-        await client.forward_messages(PeerChannel(dialog_id), message)
+            message_sent = True
+        if ((not message_sent) or (not message.chat.has_link)):
+            await client.forward_messages(PeerChannel(dialog_id), message)
             
             
 
