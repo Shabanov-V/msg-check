@@ -4,7 +4,10 @@ from telethon.tl.types import Message, PeerChannel, PeerUser
 class Util:
     @staticmethod
     def get_message_link(message: Message):
-        return 'https://t.me/{}/{}'.format(message.chat.username, message.id) if message.chat.has_link else 'https://t.me/c/{}/{}'.format(message.chat.id, message.id) 
+        if (message.chat.has_link and message.chat.username is not None):
+            return 'https://t.me/{}/{}'.format(message.chat.username, message.id())
+        else:
+            return 'https://t.me/c/{}/{}'.format(message.chat.id, message.id)
 
     @staticmethod
     async def send_message_report(client: TelegramClient, message: Message, dialog_id: int):
