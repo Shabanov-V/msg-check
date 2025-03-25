@@ -5,7 +5,7 @@ class Util:
     @staticmethod
     def get_message_link(message: Message):
         if (message.chat.has_link and message.chat.username is not None):
-            return 'https://t.me/{}/{}'.format(message.chat.username, message.id())
+            return 'https://t.me/{}/{}'.format(message.chat.username, message.id)
         else:
             return 'https://t.me/c/{}/{}'.format(message.chat.id, message.id)
 
