@@ -50,7 +50,10 @@ async def main():
             total_messages_found += len(response)
             messages_found = list(filter(lambda m: m.id in response, messages))
             for message_found in messages_found:
-                await Util.send_message_report(client, message_found, env.output_dialog_id)
+                try:
+                    await Util.send_message_report(client, message_found, env.output_dialog_id)
+                except Exception as e:
+                    await client.send_message(PeerChannel(env.error_dialog_id), 'Error processing message {},\nFrom char: {},\nError: {}'.format(message_found.id, dialog_name, e))
         messageServiceDB.update_last_processed_message(dialog_id, messages[0].id, messages[-1].date)
 
     await client.send_message(PeerChannel(env.error_dialog_id), 'Execution completed.\nMessages processed: {},\nMessages found: {}'.format(total_messages_processed, total_messages_found))
