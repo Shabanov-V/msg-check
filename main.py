@@ -6,10 +6,19 @@ from service.messageServiceDB import MessageServiceDB
 from telethon.tl.types import PeerChannel
 from datetime import datetime, timedelta
 from service.util import Util
+from tenacity import retry, stop_after_attempt, wait_fixed
 
 env = EnvLoader()
 client = TelegramClient('main', env.telegram_api_id, env.telegram_api_hash)
 
+
+@retry(stop=stop_after_attempt(5), wait=wait_fixed(10))
+async def get_dialog_filters_with_retry(client):
+    return await client(functions.messages.GetDialogFiltersRequest())
+
+@retry(stop=stop_after_attempt(5), wait=wait_fixed(10))
+async def get_messages_with_retry(client, dialog_id, last_processed_message):
+    return await client.get_messages(PeerChannel(dialog_id), min_id=last_processed_message, limit=10000)
 
 async def main():
     # Init
@@ -19,7 +28,7 @@ async def main():
     
 
     target_dialog_ids = []
-    request = await client(functions.messages.GetDialogFiltersRequest())
+    request = await get_dialog_filters_with_retry(client)
     for dialog_filter in request.filters:
         if  hasattr(dialog_filter, 'id') and dialog_filter.title.text == env.target_dialog_filter:
             target_dialog_ids = list(map(lambda peer: peer.channel_id, dialog_filter.include_peers))
@@ -31,7 +40,7 @@ async def main():
         if last_processed_message is None:
             last_processed_message = -1
 
-        messages = await client.get_messages(PeerChannel(dialog_id), min_id=last_processed_message, limit=10000)
+        messages = await get_messages_with_retry(client, dialog_id, last_processed_message)
         messages = list(filter(lambda m: m.date.timestamp() > (datetime.now() - timedelta(days=1)).timestamp(), messages))
 
         if not messages:
