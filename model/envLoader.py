@@ -1,5 +1,6 @@
 import os
 from dotenv import load_dotenv
+from functools import cached_property
 
 class EnvLoader:
     def __init__(self, env_file=None):
@@ -31,9 +32,11 @@ class EnvLoader:
     def gemini_key(self):
         return self.get("GEMINI_KEY")
     
-    @property
+    @cached_property
     def base_prompt(self):
-        return self.get("BASE_PROMPT")
+        base_prompt_file = self.get("BASE_PROMPT_FILE")
+        with open(base_prompt_file, "r", encoding="utf-8") as f:
+            return f.read()
     
     @property
     def target_dialog_filter(self):
