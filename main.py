@@ -57,7 +57,7 @@ async def main():
             continue
         if response is not None:
             total_messages_found += len(response)
-            messages_found = list(filter(lambda m: m.id in response, messages))
+            messages_found = list(reversed(list(filter(lambda m: m.id in response, messages))))
             for message_found in messages_found:
                 try:
                     await Util.send_message_report(client, message_found, env.output_dialog_id)
