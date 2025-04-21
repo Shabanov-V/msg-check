@@ -25,14 +25,13 @@ async def main():
     textAnalyzer = TextAnalyzer(env.gemini_key, env.base_prompt)
     await client.start()
     messageServiceDB = MessageServiceDB()
-    
+    sent_massages = []
 
     target_dialog_ids = []
     request = await get_dialog_filters_with_retry(client)
     for dialog_filter in request.filters:
         if  hasattr(dialog_filter, 'id') and dialog_filter.title.text == env.target_dialog_filter:
             target_dialog_ids = list(map(lambda peer: peer.channel_id, dialog_filter.include_peers))
-
     total_messages_processed = 0
     total_messages_found = 0
     for dialog_id in target_dialog_ids:
@@ -59,10 +58,13 @@ async def main():
             total_messages_found += len(response)
             messages_found = list(reversed(list(filter(lambda m: m.id in response, messages))))
             for message_found in messages_found:
+                if message_found.message in sent_massages:
+                    continue
                 try:
                     await Util.send_message_report(client, message_found, env.output_dialog_id)
                 except Exception as e:
                     await client.send_message(PeerChannel(env.error_dialog_id), 'Error processing message {},\nFrom char: {},\nError: {}'.format(message_found.id, dialog_name, e))
+                sent_massages.append(message_found.message)
         messageServiceDB.update_last_processed_message(dialog_id, messages[0].id, messages[-1].date)
 
     await client.send_message(PeerChannel(env.error_dialog_id), 'Execution completed.\nMessages processed: {},\nMessages found: {}'.format(total_messages_processed, total_messages_found))
