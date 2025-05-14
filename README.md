@@ -71,16 +71,15 @@ The script will:
 ## Project Structure
 ```
 .
-├── [main.py](http://_vscodecontentref_/0)                # Main script
-├── .env                   # Environment variables
-├── [base.prompt](http://_vscodecontentref_/1)            # AI prompt for message analysis
-├── [messages.db](http://_vscodecontentref_/2)            # SQLite database
-├── service/               # Service modules
-│   ├── [messageServiceDB.py](http://_vscodecontentref_/3) # Database operations
-│   ├── [textAnalyzer.py](http://_vscodecontentref_/4)     # AI integration
-│   └── [util.py](http://_vscodecontentref_/5)             # Utility functions
-├── model/                 # Model modules
-│   └── [envLoader.py](http://_vscodecontentref_/6)        # Environment loader
+├── main.py                 # Main script
+├── .env                    # Environment variables
+├── base.prompt             # AI prompt for message 
+├── service/                # Service modules
+│   ├── messageServiceDB.py # Database operations
+│   ├── textAnalyzer.py     # AI integration
+│   └── util.py             # Utility functions
+├── model/                  # Model modules
+│   └── envLoader.py        # Environment loader
 ```
 
 ## License
