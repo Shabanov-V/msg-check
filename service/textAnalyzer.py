@@ -16,7 +16,23 @@ class TextAnalyzer:
         return client.models.generate_content(
             model=model,
             config=types.GenerateContentConfig(
-                system_instruction=base_prompt
+                system_instruction=base_prompt,
+                response_mime_type="application/json",
+                response_schema=genai.types.Schema(
+                    required = ["found"],
+                    type = genai.types.Type.OBJECT,
+                    properties = {
+                        "IDs": genai.types.Schema(
+                            type = genai.types.Type.ARRAY,
+                            items = genai.types.Schema(
+                                type = genai.types.Type.NUMBER,
+                            ),
+                        ),
+                        "found": genai.types.Schema(
+                            type = genai.types.Type.BOOLEAN,
+                        ),
+                    },
+                ),
             ),
             contents=[text]
         )
@@ -34,8 +50,8 @@ class TextAnalyzer:
 
     def findMessages(self, text):
         response = self.__checkMessages(text)
-        if response is None or response.text.strip() == "None":
+        if response is None or not response.parsed['found']:
             return None 
         else:
-            print("Message #{} found in: {}".format(response.text.strip(), text))
-        return list(map(lambda x: int(x), response.text.strip().split(',')))
+            print("Messages #{} found in: {}".format(response.parsed['IDs'], text))
+        return list(map(lambda x: int(x), response.parsed['IDs']))

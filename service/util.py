@@ -22,6 +22,14 @@ class Util:
             message_sent = True
         if ((not message_sent) or (not message.chat.has_link)):
             await client.forward_messages(PeerChannel(dialog_id), message)
+
+    @staticmethod
+    def construct_message_object(message: Message):
+        return {
+            'chat_title': message.chat.title,
+            'text': message.text,
+            'id': message.id
+        }
             
             
 

@@ -47,10 +47,10 @@ async def main():
         total_messages_processed += len(messages)
         dialog_name = messages[0].chat.title
         messageServiceDB.store_dialog_name(dialog_id, dialog_name)
-        messages_text = list(reversed(list((map(lambda m: '{}: {}'.format(m.id, m.text), messages)))))
+        message_objects = list(reversed(list((map(lambda m: Util.construct_message_object(m), messages)))))
 
         try:
-            response = textAnalyzer.findMessages(str(messages_text))
+            response = textAnalyzer.findMessages(str(message_objects))
         except Exception as e:
             await client.send_message(PeerChannel(env.error_dialog_id), 'Error processing messages from dialog {}, \nError: {}'.format(dialog_name, e))
             continue
