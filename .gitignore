@@ -6,3 +6,4 @@
 *.session-journal
 *.txt
 *.prompt
+!requirements.txt
