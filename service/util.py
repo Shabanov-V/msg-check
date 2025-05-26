@@ -6,6 +6,8 @@ import time
 class Util:
     @staticmethod
     def get_message_link(message: Message):
+        if not message.chat.megagroup and not message.chat.gigagroup:
+            return 'From chat: {}'.format(message.chat.title)
         if (hasattr(message.chat, 'has_link') and message.chat.has_link and message.chat.username is not None):
             return 'https://t.me/{}/{}'.format(message.chat.username, message.id)
         else:
@@ -20,8 +22,8 @@ class Util:
 
         # Send message with delay to mark as unread
         await client.send_message(PeerChannel(output_dialog_id), message_link, link_preview=False, schedule=timedelta(seconds=60))
-        await client.forward_messages(PeerChannel(output_dialog_id), message, schedule=timedelta(seconds=65))
-        time.sleep(6)
+        await client.forward_messages(PeerChannel(output_dialog_id), message, schedule=timedelta(seconds=61))
+        time.sleep(5)
 
     @staticmethod
     def construct_message_object(message: Message):
