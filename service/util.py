@@ -32,6 +32,15 @@ class Util:
             'text': message.text,
             'id': message.id
         }
-            
-            
+
+    @staticmethod
+    def compare_strings(str1: str, str2: str) -> bool:
+        # compare only letters and remove \n
+        str1 = str1.replace('\n', '')
+        str2 = str2.replace('\n', '')
+        str1_letters = ''.join(filter(str.isalpha, str1))
+        str2_letters = ''.join(filter(str.isalpha, str2))
+        return str1_letters.lower() == str2_letters.lower()
+
+
 

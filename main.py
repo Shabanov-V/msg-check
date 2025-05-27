@@ -30,6 +30,12 @@ def build_dialog_object(peer):
     elif type(peer) == InputPeerUser:
         return Dialog(peer.user_id, DialogType.USER)
 
+def is_message_in_list(message, message_list) -> bool:
+    for msg in message_list:
+        if Util.compare_strings(message, msg):
+            return True
+    return False
+
 async def main():
     # Init
     textAnalyzer = TextAnalyzer(env.gemini_key, env.base_prompt)
@@ -68,7 +74,7 @@ async def main():
             total_messages_found += len(response)
             messages_found = list(reversed(list(filter(lambda m: m.id in response, messages))))
             for message_found in messages_found:
-                if message_found.message in sent_massages:
+                if is_message_in_list(message_found.message, sent_massages):
                     continue
                 try:
                     await Util.send_message_report(client, message_found, env.output_dialog_id)
