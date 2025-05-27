@@ -6,7 +6,7 @@ import time
 class Util:
     @staticmethod
     def get_message_link(message: Message):
-        if not message.chat.megagroup and not message.chat.gigagroup:
+        if not message.chat.megagroup and not message.chat.gigagroup and not message.chat.broadcast:
             return 'From chat: {}'.format(message.chat.title)
         if (hasattr(message.chat, 'has_link') and message.chat.has_link and message.chat.username is not None):
             return 'https://t.me/{}/{}'.format(message.chat.username, message.id)
