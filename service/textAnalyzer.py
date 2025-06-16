@@ -31,6 +31,30 @@ class TextAnalyzer:
                         "found": genai.types.Schema(
                             type = genai.types.Type.BOOLEAN,
                         ),
+                        "Events": genai.types.Schema(
+                            type = genai.types.Type.ARRAY,
+                            items = genai.types.Schema(
+                                type = genai.types.Type.OBJECT,
+                                required = ["id", "start_datetime", "end_datetime", "title", "description"],
+                                properties = {
+                                    "start_datetime": genai.types.Schema(
+                                        type = genai.types.Type.STRING,
+                                    ),
+                                    "end_datetime": genai.types.Schema(
+                                        type = genai.types.Type.STRING,
+                                    ),
+                                    "title": genai.types.Schema(
+                                        type = genai.types.Type.STRING,
+                                    ),
+                                    "description": genai.types.Schema(
+                                        type = genai.types.Type.STRING,
+                                    ),
+                                    "id": genai.types.Schema(
+                                        type = genai.types.Type.NUMBER,
+                                    ),
+                                },
+                            ),
+                        ),
                     },
                 ),
             ),
@@ -52,6 +76,9 @@ class TextAnalyzer:
         response = self.__checkMessages(text)
         if response is None or not response.parsed['found']:
             return None 
-        else:
-            print("Messages #{} found in: {}".format(response.parsed['IDs'], text))
-        return list(map(lambda x: int(x), response.parsed['IDs']))
+        
+        print("Messages #{} found in: {}".format(response.parsed['IDs'], text))
+        events = response.parsed.get('Events', [])
+        ids = list(map(lambda x: int(x), response.parsed['IDs']))
+        return {"IDs": ids, "Events": events}
+        # return list(map(lambda x: int(x), response.parsed['IDs']))

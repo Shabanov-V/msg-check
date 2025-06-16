@@ -1,6 +1,7 @@
 from telethon import TelegramClient
 from model.envLoader import EnvLoader
 from service.textAnalyzer import TextAnalyzer
+from service.calendarService import CalendarService
 from telethon.tl import functions
 from service.messageServiceDB import MessageServiceDB
 from telethon.tl.types import PeerChannel, InputPeerChannel, InputPeerChat, InputPeerUser
@@ -39,6 +40,7 @@ def is_message_in_list(message, message_list) -> bool:
 async def main():
     # Init
     textAnalyzer = TextAnalyzer(env.gemini_key, env.base_prompt)
+    calendarService = CalendarService()
     await client.start()
     messageServiceDB = MessageServiceDB()
     sent_massages = []
@@ -67,12 +69,14 @@ async def main():
 
         try:
             response = textAnalyzer.findMessages(str(message_objects))
+            message_ids = response.get('IDs', [])
+            events = response.get('Events', [])
         except Exception as e:
             await client.send_message(PeerChannel(env.error_dialog_id), 'Error processing messages from dialog {}, \nError: {}'.format(dialog_name, e))
             continue
         if response is not None:
-            total_messages_found += len(response)
-            messages_found = list(reversed(list(filter(lambda m: m.id in response, messages))))
+            total_messages_found += len(message_ids)
+            messages_found = list(reversed(list(filter(lambda m: m.id in message_ids, messages))))
             for message_found in messages_found:
                 if is_message_in_list(message_found.message, sent_massages):
                     continue
@@ -81,6 +85,19 @@ async def main():
                 except Exception as e:
                     await client.send_message(PeerChannel(env.error_dialog_id), 'Error processing message {},\nFrom char: {},\nError: {}'.format(message_found.id, dialog_name, e))
                 sent_massages.append(message_found.message)
+            for event in events:
+                try:
+                    start_datetime = datetime.fromisoformat(event['start_datetime'])
+                    end_datetime = datetime.fromisoformat(event['end_datetime'])
+                    text = f"Event: {event['title']}\nDescription: {event['description']}\nStart: {start_datetime}\nEnd: {end_datetime}"
+                    calendarService.create_event(
+                        name=event['title'],
+                        description=event['description'],
+                        start_datetime=start_datetime,
+                        end_datetime=end_datetime
+                    )
+                except Exception as e:
+                    await client.send_message(PeerChannel(env.error_dialog_id), 'Error creating event from message {},\nFrom char: {},\nError: {}'.format(event['id'], dialog_name, e))
         messageServiceDB.update_last_processed_message(dialog_object.id, messages[0].id, messages[-1].date)
 
     await client.send_message(PeerChannel(env.error_dialog_id), 'Execution completed.\nMessages processed: {},\nMessages found: {}'.format(total_messages_processed, total_messages_found))

@@ -1,9 +1,12 @@
 from telethon import TelegramClient
 from telethon.tl.types import Message, PeerChannel, PeerUser
 from datetime import timedelta
-import time
+import asyncio
 
 class Util:
+
+    _offset = 0
+
     @staticmethod
     def get_message_link(message: Message):
         if not message.chat.megagroup and not message.chat.gigagroup and not message.chat.broadcast:
@@ -21,16 +24,27 @@ class Util:
         message_link = Util.get_message_link(message)
 
         # Send message with delay to mark as unread
-        await client.send_message(PeerChannel(output_dialog_id), message_link, link_preview=False, schedule=timedelta(seconds=60))
-        await client.forward_messages(PeerChannel(output_dialog_id), message, schedule=timedelta(seconds=61))
-        time.sleep(5)
+        await client.send_message(
+            PeerChannel(output_dialog_id), 
+            message_link, 
+            link_preview=False, 
+            schedule=timedelta(seconds=60 + Util._offset * 60)
+            )
+        await client.forward_messages(
+            PeerChannel(output_dialog_id), 
+            message, 
+            schedule=timedelta(seconds=90 + Util._offset * 60)
+            )
+
+        Util._offset += 1
 
     @staticmethod
     def construct_message_object(message: Message):
         return {
             'chat_title': message.chat.title,
             'text': message.text,
-            'id': message.id
+            'id': message.id,
+            'datetime': message.date.isoformat(),
         }
 
     @staticmethod

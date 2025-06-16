@@ -7,3 +7,4 @@
 *.txt
 *.prompt
 !requirements.txt
+*.json
