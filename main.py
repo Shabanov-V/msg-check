@@ -69,12 +69,12 @@ async def main():
 
         try:
             response = textAnalyzer.findMessages(str(message_objects))
-            message_ids = response.get('IDs', [])
-            events = response.get('Events', [])
         except Exception as e:
             await client.send_message(PeerChannel(env.error_dialog_id), 'Error processing messages from dialog {}, \nError: {}'.format(dialog_name, e))
             continue
         if response is not None:
+            message_ids = response.get('IDs', [])
+            events = response.get('Events', [])
             total_messages_found += len(message_ids)
             messages_found = list(reversed(list(filter(lambda m: m.id in message_ids, messages))))
             for message_found in messages_found:
@@ -87,19 +87,18 @@ async def main():
                 sent_massages.append(message_found.message)
             for event in events:
                 try:
+                    message = next((m for m in messages if m.id == event['id']), None)
                     start_datetime = datetime.fromisoformat(event['start_datetime'])
                     end_datetime = datetime.fromisoformat(event['end_datetime'])
-                    text = f"Event: {event['title']}\nDescription: {event['description']}\nStart: {start_datetime}\nEnd: {end_datetime}"
                     calendarService.create_event(
                         name=event['title'],
-                        description=event['description'],
+                        description=event['description'] + '\n\n{}'.format(Util.get_message_link(message)),
                         start_datetime=start_datetime,
                         end_datetime=end_datetime
                     )
                 except Exception as e:
                     await client.send_message(PeerChannel(env.error_dialog_id), 'Error creating event from message {},\nFrom char: {},\nError: {}'.format(event['id'], dialog_name, e))
         messageServiceDB.update_last_processed_message(dialog_object.id, messages[0].id, messages[-1].date)
-
     await client.send_message(PeerChannel(env.error_dialog_id), 'Execution completed.\nMessages processed: {},\nMessages found: {}'.format(total_messages_processed, total_messages_found))
 
 with client:

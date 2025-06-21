@@ -1,5 +1,6 @@
+from zoneinfo import ZoneInfo
 from telethon import TelegramClient
-from telethon.tl.types import Message, PeerChannel, PeerUser
+from telethon.tl.types import Message, PeerChannel, PeerUser, Chat
 from datetime import timedelta
 import asyncio
 
@@ -9,7 +10,7 @@ class Util:
 
     @staticmethod
     def get_message_link(message: Message):
-        if not message.chat.megagroup and not message.chat.gigagroup and not message.chat.broadcast:
+        if isinstance(message.chat, Chat):
             return 'From chat: {}'.format(message.chat.title)
         if (hasattr(message.chat, 'has_link') and message.chat.has_link and message.chat.username is not None):
             return 'https://t.me/{}/{}'.format(message.chat.username, message.id)
@@ -44,7 +45,7 @@ class Util:
             'chat_title': message.chat.title,
             'text': message.text,
             'id': message.id,
-            'datetime': message.date.isoformat(),
+            'datetime': message.date.astimezone(ZoneInfo("Europe/Madrid")).strftime("%Y-%m-%d %H:%M:%S %z"),
         }
 
     @staticmethod
