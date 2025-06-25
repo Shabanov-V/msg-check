@@ -45,7 +45,7 @@ class Util:
             'chat_title': message.chat.title,
             'text': message.text,
             'id': message.id,
-            'datetime': message.date.astimezone(ZoneInfo("Europe/Madrid")).strftime("%Y-%m-%d %H:%M:%S %z"),
+            'datetime': message.date.astimezone(ZoneInfo("Europe/Madrid")).isoformat(),
         }
 
     @staticmethod

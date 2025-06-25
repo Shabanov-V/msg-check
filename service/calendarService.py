@@ -56,15 +56,22 @@ class CalendarService:
             "summary": name,
             "description": description,
             "start": {
-                "dateTime": start_datetime.isoformat() + "Z",
-                "timeZone": "UTC",
+                "dateTime": start_datetime.isoformat()
             },
             "end": {
-                "dateTime": end_datetime.isoformat() + "Z",
-                "timeZone": "UTC",
+                "dateTime": end_datetime.isoformat()
             },
         }
         return self.service.events().insert(calendarId=self.calendar_id, body=event).execute()
 
     def get_subscription_link(self):
         return f"https://calendar.google.com/calendar/u/0/r?cid={self.calendar_id}"
+
+    # Only manual execution
+    def clear_all_events(self):
+        """Deletes all events from the calendar."""
+        events_result = self.service.events().list(calendarId=self.calendar_id).execute()
+        events = events_result.get('items', [])
+        for event in events:
+            self.service.events().delete(calendarId=self.calendar_id, eventId=event['id']).execute()
+            print(f"Deleted event: {event.get('summary', event['id'])}")

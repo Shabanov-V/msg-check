@@ -16,6 +16,7 @@ class TextAnalyzer:
         return client.models.generate_content(
             model=model,
             config=types.GenerateContentConfig(
+                temperature=0,
                 system_instruction=base_prompt,
                 response_mime_type="application/json",
                 response_schema=genai.types.Schema(
