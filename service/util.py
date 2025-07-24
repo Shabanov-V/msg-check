@@ -43,19 +43,24 @@ class Util:
     def construct_message_object(message: Message):
         return {
             'chat_title': message.chat.title,
+            'chat_id': message.chat.id,
             'text': message.text,
-            'id': message.id,
+            'message_id': message.id,
             'datetime': message.date.astimezone(ZoneInfo("Europe/Madrid")).isoformat(),
         }
 
     @staticmethod
-    def compare_strings(str1: str, str2: str) -> bool:
-        # compare only letters and remove \n
-        str1 = str1.replace('\n', '')
-        str2 = str2.replace('\n', '')
-        str1_letters = ''.join(filter(str.isalpha, str1))
-        str2_letters = ''.join(filter(str.isalpha, str2))
-        return str1_letters.lower() == str2_letters.lower()
+    def is_message_in_list(str1: str, str_list: list) -> bool:
+        """
+        Returns True if str1 matches any string in str_list,
+        comparing only letters and ignoring newlines and case.
+        """
+        str1_clean = ''.join(filter(str.isalpha, str1.replace('\n', ''))).lower()
+        for s in str_list:
+            s_clean = ''.join(filter(str.isalpha, s.replace('\n', ''))).lower()
+            if str1_clean == s_clean:
+                return True
+        return False
 
 
 

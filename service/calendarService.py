@@ -1,11 +1,9 @@
-import datetime
 import os.path
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
 
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
 CALENDAR_SUMMARY = "Event Calendar"
@@ -29,7 +27,11 @@ class CalendarService:
                 flow = InstalledAppFlow.from_client_secrets_file(
                     self.credentials_path, SCOPES
                 )
-                creds = flow.run_local_server(port=0, access_type='offline')
+                creds = flow.run_local_server(
+                    port=0,
+                    access_type='offline',
+                    prompt='consent'
+                )
             with open(self.token_path, "w") as token:
                 token.write(creds.to_json())
         return creds

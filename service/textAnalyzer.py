@@ -23,21 +23,39 @@ class TextAnalyzer:
                     required = ["found"],
                     type = genai.types.Type.OBJECT,
                     properties = {
-                        "IDs": genai.types.Schema(
-                            type = genai.types.Type.ARRAY,
-                            items = genai.types.Schema(
-                                type = genai.types.Type.NUMBER,
-                            ),
-                        ),
                         "found": genai.types.Schema(
                             type = genai.types.Type.BOOLEAN,
+                        ),
+                        "results": genai.types.Schema(
+                            type = genai.types.Type.ARRAY,
+                            items = genai.types.Schema(
+                                type = genai.types.Type.OBJECT,
+                                required = ["chat_id", "message_id", "text"],
+                                properties = {
+                                    "chat_id": genai.types.Schema(
+                                        type = genai.types.Type.STRING,
+                                    ),
+                                    "message_id": genai.types.Schema(
+                                        type = genai.types.Type.STRING,
+                                    ),
+                                    "text": genai.types.Schema(
+                                        type = genai.types.Type.STRING,
+                                    ),
+                                },
+                            ),
                         ),
                         "Events": genai.types.Schema(
                             type = genai.types.Type.ARRAY,
                             items = genai.types.Schema(
                                 type = genai.types.Type.OBJECT,
-                                required = ["id", "start_datetime", "end_datetime", "title", "description"],
+                                required = ["chat_id", "message_id", "start_datetime", "end_datetime", "title", "description"],
                                 properties = {
+                                    "chat_id": genai.types.Schema(
+                                        type = genai.types.Type.STRING,
+                                    ),
+                                    "message_id": genai.types.Schema(
+                                        type = genai.types.Type.STRING,
+                                    ),
                                     "start_datetime": genai.types.Schema(
                                         type = genai.types.Type.STRING,
                                     ),
@@ -49,9 +67,6 @@ class TextAnalyzer:
                                     ),
                                     "description": genai.types.Schema(
                                         type = genai.types.Type.STRING,
-                                    ),
-                                    "id": genai.types.Schema(
-                                        type = genai.types.Type.NUMBER,
                                     ),
                                 },
                             ),
@@ -67,7 +82,7 @@ class TextAnalyzer:
         try:
             response = self.__generate_content_with_retry(self.client, self.model, self.base_prompt, text)
         except Exception as e:
-            if (e.code != 429):
+            if (not hasattr(e, "code") or e.code != 429):
                 sys.stderr.write("{}: Failed to get response: {}\n".format(datetime.now(), e))
         if response is None:
             raise Exception("Failed to get response")
@@ -78,8 +93,7 @@ class TextAnalyzer:
         if response is None or not response.parsed['found']:
             return None 
         
-        print("Messages #{} found in: {}".format(response.parsed['IDs'], text))
+        print("Messages found in: {}".format(text))
+        results = response.parsed.get('results', [])
         events = response.parsed.get('Events', [])
-        ids = list(map(lambda x: int(x), response.parsed['IDs']))
-        return {"IDs": ids, "Events": events}
-        # return list(map(lambda x: int(x), response.parsed['IDs']))
+        return {"results": results, "Events": events}
