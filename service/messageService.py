@@ -151,7 +151,14 @@ class MessageService:
             if last_processed_message is None:
                 last_processed_message = -1
 
-            messages = await self.get_messages_with_retry(dialog_object.peer, last_processed_message)
+            try:
+                messages = await self.get_messages_with_retry(dialog_object.peer, last_processed_message)
+            except Exception as e:
+                await self.client.send_message(
+                    PeerChannel(self.env.error_dialog_id),
+                    f'Error fetching messages for dialog {dialog_object.id}.\nError: {e}'
+                )
+                continue
             messages = self.filter_recent_messages(messages)
             if not messages:
                 continue
