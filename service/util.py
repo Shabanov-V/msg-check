@@ -44,10 +44,20 @@ class Util:
         return {
             'chat_title': message.chat.title,
             'chat_id': message.chat.id,
-            'text': message.text,
+            'text': message.text + Util.get_poll_question_text(message),
             'message_id': message.id,
             'datetime': message.date.astimezone(ZoneInfo("Europe/Madrid")).isoformat(),
         }
+    
+    @staticmethod
+    def get_poll_question_text(message: Message):
+        """
+        Safely returns the poll question text if it exists, otherwise returns an empty string.
+        """
+        try:
+            return message.media.poll.question.text
+        except AttributeError:
+            return ""
 
     @staticmethod
     def is_message_in_list(str1: str, str_list: list) -> bool:
