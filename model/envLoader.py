@@ -49,3 +49,7 @@ class EnvLoader:
     @property
     def error_dialog_id(self):
         return int(self.get("ERROR_DIALOG_ID"))
+    
+    @property
+    def calendar_id(self):
+        return self.get("CALENDAR_ID")

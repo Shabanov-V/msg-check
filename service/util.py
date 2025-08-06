@@ -44,11 +44,15 @@ class Util:
         return {
             'chat_title': message.chat.title,
             'chat_id': message.chat.id,
-            'text': message.text + Util.get_poll_question_text(message),
+            'text': Util.construct_message_text(message),
             'message_id': message.id,
             'datetime': message.date.astimezone(ZoneInfo("Europe/Madrid")).isoformat(),
         }
     
+    @staticmethod
+    def construct_message_text(message: Message):
+        return f"{message.text}\n{Util.get_poll_question_text(message)}" if message.text else Util.get_poll_question_text(message)
+
     @staticmethod
     def get_poll_question_text(message: Message):
         """

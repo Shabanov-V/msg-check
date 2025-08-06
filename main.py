@@ -41,7 +41,7 @@ async def main():
     sent_messages = []
 
     try:
-        calendar_service = CalendarService()
+        calendar_service = CalendarService(env.calendar_id)
     except Exception as e:
         await client.send_message(
             PeerChannel(env.error_dialog_id),
