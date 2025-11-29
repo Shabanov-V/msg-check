@@ -25,6 +25,7 @@ class DBService:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     dialog_id TEXT NOT NULL,
                     event_id TEXT NOT NULL,
+                    google_event_id TEXT,
                     title TEXT NOT NULL,
                     start_time DATETIME NOT NULL,
                     end_time DATETIME NOT NULL,
@@ -33,6 +34,11 @@ class DBService:
                     UNIQUE(dialog_id, event_id)
                 )
             """)
+            # Migration to add google_event_id if it doesn't exist
+            try:
+                cursor.execute("ALTER TABLE calendar_events ADD COLUMN google_event_id TEXT")
+            except sqlite3.OperationalError:
+                pass # Column already exists
             conn.commit()
 
     def store_dialog_name(self, dialog_id: str, name: str) -> None:
@@ -63,16 +69,37 @@ class DBService:
         title: str,
         start_time: datetime,
         end_time: datetime,
-        description: Optional[str] = None
+        description: Optional[str] = None,
+        google_event_id: Optional[str] = None
     ) -> None:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT OR REPLACE INTO calendar_events (
-                    dialog_id, event_id, title, start_time, end_time, description
-                ) VALUES (?, ?, ?, ?, ?, ?)
-            """, (dialog_id, event_id, title, start_time, end_time, description))
+                    dialog_id, event_id, title, start_time, end_time, description, google_event_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (dialog_id, event_id, title, start_time, end_time, description, google_event_id))
             conn.commit()
+
+    def get_events_starting_around(
+        self,
+        start_time: datetime,
+        window_minutes: int = 120
+    ) -> List[Tuple]:
+        """
+        Retrieve all calendar events where the event's start_time is within
+        +/- window_minutes of the given start_time.
+        """
+        start_lower = start_time - timedelta(minutes=window_minutes)
+        start_upper = start_time + timedelta(minutes=window_minutes)
+
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT * FROM calendar_events
+                WHERE start_time >= ? AND start_time <= ?
+            """, (start_lower, start_upper))
+            return cursor.fetchall()
 
     def get_events_by_time_range(
         self,

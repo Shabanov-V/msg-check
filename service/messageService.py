@@ -2,6 +2,7 @@ from telethon import TelegramClient
 from telethon.tl.types import PeerChannel
 from datetime import datetime
 from typing import List, Tuple, Any
+import difflib
 
 from model.dialog import Dialog
 from service.util import Util
@@ -106,24 +107,62 @@ class MessageService:
                 )
                 start_datetime = datetime.fromisoformat(event['start_datetime'])
                 end_datetime = datetime.fromisoformat(event['end_datetime'])
-                self.calendar_service.create_event(
+
+                # Check for duplicates using local fuzzy matching
+                candidates = self.db_service.get_events_starting_around(start_datetime, window_minutes=120)
+                is_duplicate = False
+                existing_google_event_id = None
+
+                for candidate in candidates:
+                    # candidate structure: (id, dialog_id, event_id, google_event_id, title, start_time, end_time, description, created_at)
+                    # Note: index 4 is title, index 3 is google_event_id (based on new schema order)
+                    # Let's verify index by name if possible, but tuple is returned.
+                    # Schema: id, dialog_id, event_id, google_event_id, title, start_time, end_time, description, created_at
+                    candidate_title = candidate[4]
+                    candidate_google_id = candidate[3]
+                    
+                    similarity = difflib.SequenceMatcher(None, event['title'], candidate_title).ratio()
+                    if similarity > 0.6 or event['title'] in candidate_title or candidate_title in event['title']:
+                        is_duplicate = True
+                        existing_google_event_id = candidate_google_id
+                        print(f"Duplicate event detected: '{event['title']}' is similar to '{candidate_title}' (score: {similarity:.2f})")
+                        break
+                
+                if is_duplicate:
+                    # Store association but skip creation
+                    self.db_service.store_calendar_event(
+                        dialog_id=dialog_id,
+                        event_id=event['message_id'],
+                        title=event['title'],
+                        start_time=start_datetime,
+                        end_time=end_datetime,
+                        description=event['description'],
+                        google_event_id=existing_google_event_id
+                    )
+                    continue
+
+                created_event = self.calendar_service.create_event(
                     name=event['title'],
                     description=event['description'] + '\n\n{}'.format(Util.get_message_link(message)),
                     start_datetime=start_datetime,
                     end_datetime=end_datetime
                 )
+                
+                google_event_id = created_event.get('id')
+
                 self.db_service.store_calendar_event(
                     dialog_id=dialog_id,
                     event_id=event['message_id'],
                     title=event['title'],
                     start_time=start_datetime,
                     end_time=end_datetime,
-                    description=event['description']
+                    description=event['description'],
+                    google_event_id=google_event_id
                 )
             except Exception as e:
                 await self.client.send_message(
                     PeerChannel(self.env.error_dialog_id),
-                    f'Error creating event from message {event['message_id']},\nFrom chat: {dialog_name},\nError: {e}'
+                    f'Error creating event from message {event["message_id"]},\nFrom chat: {dialog_name},\nError: {e}'
                 )
     @retry(stop=stop_after_attempt(5), wait=wait_fixed(10))
     async def get_messages_with_retry(self, dialog_peer, last_processed_message):
@@ -224,19 +263,52 @@ class MessageService:
                     message = dialog_info["message"]
                     start_datetime = datetime.fromisoformat(event['start_datetime'])
                     end_datetime = datetime.fromisoformat(event['end_datetime'])
-                    self.calendar_service.create_event(
+                    
+                    # Check for duplicates using local fuzzy matching
+                    candidates = self.db_service.get_events_starting_around(start_datetime, window_minutes=120)
+                    is_duplicate = False
+                    existing_google_event_id = None
+
+                    for candidate in candidates:
+                        # Schema: id, dialog_id, event_id, google_event_id, title, start_time, end_time, description, created_at
+                        candidate_title = candidate[4]
+                        candidate_google_id = candidate[3]
+                        
+                        similarity = difflib.SequenceMatcher(None, event['title'], candidate_title).ratio()
+                        if similarity > 0.6 or event['title'] in candidate_title or candidate_title in event['title']:
+                            is_duplicate = True
+                            existing_google_event_id = candidate_google_id
+                            print(f"Duplicate event detected: '{event['title']}' is similar to '{candidate_title}' (score: {similarity:.2f})")
+                            break
+                    
+                    if is_duplicate:
+                        self.db_service.store_calendar_event(
+                            dialog_id=dialog_object.id,
+                            event_id=event['message_id'],
+                            title=event['title'],
+                            start_time=start_datetime,
+                            end_time=end_datetime,
+                            description=event['description'],
+                            google_event_id=existing_google_event_id
+                        )
+                        continue
+
+                    created_event = self.calendar_service.create_event(
                         name=event['title'],
                         description=event['description'] + '\n\n{}'.format(Util.get_message_link(message)),
                         start_datetime=start_datetime,
                         end_datetime=end_datetime
                     )
+                    google_event_id = created_event.get('id')
+
                     self.db_service.store_calendar_event(
                         dialog_id=dialog_object.id,
                         event_id=event['message_id'],
                         title=event['title'],
                         start_time=start_datetime,
                         end_time=end_datetime,
-                        description=event['description']
+                        description=event['description'],
+                        google_event_id=google_event_id
                     )
                 except Exception as e:
                     await self.client.send_message(
