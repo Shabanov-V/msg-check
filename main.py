@@ -28,14 +28,14 @@ def build_dialog_object(peer):
     elif type(peer) == InputPeerUser:
         return Dialog(peer.user_id, DialogType.USER)
 
-def get_target_dialog_objects(request, env):
-    for dialog_filter in request.filters:
-        if hasattr(dialog_filter, 'id') and dialog_filter.title.text == env.target_dialog_filter:
+def get_target_dialog_objects(filters, env):
+    for dialog_filter in filters:
+        if hasattr(dialog_filter, 'id') and dialog_filter.title == env.target_dialog_filter:
             return list(map(lambda peer: build_dialog_object(peer), dialog_filter.include_peers))
     return []
 
 async def main():
-    text_analyzer = TextAnalyzer(env.gemini_key, env.base_prompt)
+    text_analyzer = TextAnalyzer(env.openrouter_api_key, env.base_prompt, env.llm_model)
     await client.start()
     db_service = DBService()
     sent_messages = []
@@ -61,8 +61,8 @@ async def main():
         env=env,
     )
 
-    request = await get_dialog_filters_with_retry(client)
-    target_dialog_objects = get_target_dialog_objects(request, env)
+    filters = await get_dialog_filters_with_retry(client)
+    target_dialog_objects = get_target_dialog_objects(filters, env)
 
     # Collect all peers from all target dialogs
     all_peers = []

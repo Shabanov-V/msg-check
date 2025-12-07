@@ -29,9 +29,13 @@ class EnvLoader:
         return self.get("PASSWORD")
     
     @property
-    def gemini_key(self):
-        return self.get("GEMINI_KEY")
-    
+    def openrouter_api_key(self):
+        return self.get("OPENROUTER_API_KEY")
+
+    @property
+    def llm_model(self):
+        return self.get("LLM_MODEL", "google/gemini-2.0-flash-exp:free")
+
     @cached_property
     def base_prompt(self):
         base_prompt_file = self.get("BASE_PROMPT_FILE")
