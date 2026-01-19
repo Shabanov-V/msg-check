@@ -237,6 +237,60 @@ class MessageService:
             message_ids = [item['message_id'] for item in results]
             # Handle found messages
             messages_found = list(reversed([m for m in all_messages if str(m.id) in message_ids]))
+
+            # Check for ID mismatch
+            # Check for ID mismatch and attempt fallback
+            if len(messages_found) < messages_found_count:
+                missing_ids = [mid for mid in message_ids if mid not in [str(m.id) for m in messages_found]]
+                
+                # Fallback: Try to find messages by text content
+                recovered_messages = []
+                for missing_id in missing_ids:
+                    # Find the result object for this missing ID to get the text
+                    missing_result = next((r for r in results if r['message_id'] == missing_id), None)
+                    if not missing_result:
+                        continue
+                        
+                    missing_text = missing_result.get('text', '')
+                    # Search in all_messages for a match
+                    for m in all_messages:
+                        # Skip if already found
+                        if m in messages_found or m in recovered_messages:
+                            continue
+                        
+                        # Use loose matching or exact cleaning match
+                        if Util.construct_message_text(m).strip() == missing_text.strip(): # Strip to normalize
+                             recovered_messages.append(m)
+                             # Update the result's message_id to the real one so downstream logic works
+                             missing_result['message_id'] = str(m.id)
+                             # Update event message_ids as well if any events are linked to this hallucinated ID
+                             for event in events:
+                                 if event['message_id'] == missing_id:
+                                     event['message_id'] = str(m.id)
+                             break
+                
+                if recovered_messages:
+                    messages_found.extend(recovered_messages)
+                    await self.client.send_message(
+                        PeerChannel(self.env.error_dialog_id),
+                        f'Info: Recovered {len(recovered_messages)} messages via text fallback.\n'
+                        f'Original Missing IDs: {missing_ids}\n'
+                        f'Recovered IDs: {[m.id for m in recovered_messages]}'
+                    )
+
+                # Re-check for remaining missing IDs
+                if len(messages_found) < messages_found_count:
+                    still_missing_ids = [mid for mid in message_ids if mid not in [str(m.id) for m in messages_found]]
+                     # Note: This list might be slightly misleading if we recovered messages but the IDs don't match anymore. 
+                     # But it's good enough to show what was originally asked for.
+                    
+                    await self.client.send_message(
+                        PeerChannel(self.env.error_dialog_id),
+                        f'Warning: LLM found {messages_found_count} messages, but only {len(messages_found)} were matched (including fallback).\n'
+                        f'Still Missing IDs: {still_missing_ids}\n'
+                        f'Dialogs processed: {[d.id for d in dialog_objects]}'
+                    )
+            
             for message_found in messages_found:
                 dialog_info = dialog_map.get(message_found.id)
                 if not dialog_info:
