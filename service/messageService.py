@@ -214,6 +214,14 @@ class MessageService:
 
         if not all_messages:
             return 0, 0, 0
+
+        # Sort messages by date (Newest -> Oldest)
+        all_messages.sort(key=lambda m: m.date, reverse=True)
+
+        # Limit to 500 messages (taking the oldest 500 to ensure contiguous processing)
+        # This prevents hitting the analyzer's content length limit while ensuring we process the backlog in order.
+        if len(all_messages) > 500:
+            all_messages = all_messages[-500:]
         
         # Prepare message objects for analyzer
         message_objects = list(reversed([Util.construct_message_object(m) for m in all_messages]))
