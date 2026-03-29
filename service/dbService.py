@@ -2,6 +2,8 @@ import sqlite3
 from typing import List, Tuple, Optional
 from datetime import datetime, timedelta
 
+from service.runContext import RunContext
+
 class DBService:
     def __init__(self, db_path: str = "messages.db"):
         self.db_path = db_path
@@ -39,6 +41,32 @@ class DBService:
                 cursor.execute("ALTER TABLE calendar_events ADD COLUMN google_event_id TEXT")
             except sqlite3.OperationalError:
                 pass # Column already exists
+
+            # Migration: prefix existing dialog_id entries with "telegram:" for source disambiguation
+            cursor.execute("UPDATE dialogs SET dialog_id = 'telegram:' || dialog_id WHERE dialog_id NOT LIKE '%:%'")
+            cursor.execute("UPDATE calendar_events SET dialog_id = 'telegram:' || dialog_id WHERE dialog_id NOT LIKE '%:%'")
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS run_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    run_timestamp DATETIME NOT NULL,
+                    duration_sec REAL,
+                    sources_count INTEGER,
+                    chats_count INTEGER,
+                    messages_processed INTEGER,
+                    messages_matched INTEGER,
+                    events_found INTEGER,
+                    events_deduplicated INTEGER,
+                    hallucination_recoveries INTEGER,
+                    dedup_skips INTEGER,
+                    errors_count INTEGER,
+                    llm_phase1_duration_sec REAL,
+                    llm_phase2_duration_sec REAL,
+                    verbosity TEXT,
+                    match_rate REAL
+                )
+            """)
+
             conn.commit()
 
     def store_dialog_name(self, dialog_id: str, name: str) -> None:
@@ -55,8 +83,20 @@ class DBService:
             cursor.execute("SELECT processed_message_id FROM dialogs WHERE dialog_id = ?", (dialog_id,))
             result = cursor.fetchone()
             return result[0] if result else None
+
+    def get_last_processed_timestamp(self, dialog_id: str) -> Optional[datetime]:
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT processed_message_timestamp FROM dialogs WHERE dialog_id = ?", (dialog_id,))
+            result = cursor.fetchone()
+            if result and result[0]:
+                ts = result[0]
+                if isinstance(ts, str):
+                    return datetime.fromisoformat(ts)
+                return ts
+            return None
     
-    def update_last_processed_message(self, dialog_id: str, message_id: int, message_time: datetime) -> None:
+    def update_last_processed_message(self, dialog_id: str, message_id: str, message_time: datetime) -> None:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("UPDATE dialogs SET processed_message_id = ?, processed_message_timestamp = ? WHERE dialog_id = ?", (message_id, message_time, dialog_id))
@@ -121,4 +161,42 @@ class DBService:
                 SELECT * FROM calendar_events
                 WHERE start_time >= ? AND end_time <= ?
             """, (start_lower, end_upper))
+            return cursor.fetchall()
+
+    def store_run(self, run_ctx: RunContext, verbosity: str = "normal") -> None:
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO run_history (
+                    run_timestamp, duration_sec, sources_count, chats_count,
+                    messages_processed, messages_matched, events_found,
+                    events_deduplicated, hallucination_recoveries, dedup_skips,
+                    errors_count, llm_phase1_duration_sec, llm_phase2_duration_sec,
+                    verbosity, match_rate
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                run_ctx.start_time.isoformat(),
+                run_ctx.duration_sec,
+                run_ctx.sources_count,
+                run_ctx.chats_count,
+                run_ctx.total_fetched,
+                run_ctx.total_matched,
+                run_ctx.total_events,
+                run_ctx.total_events_deduplicated,
+                run_ctx.hallucination_recoveries,
+                len(run_ctx.dedup_skips),
+                len(run_ctx.errors),
+                run_ctx.llm_phase1_duration_sec,
+                run_ctx.llm_phase2_duration_sec,
+                verbosity,
+                run_ctx.match_rate,
+            ))
+            conn.commit()
+
+    def get_recent_runs(self, n: int = 5) -> List[Tuple]:
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT * FROM run_history ORDER BY id DESC LIMIT ?", (n,)
+            )
             return cursor.fetchall()

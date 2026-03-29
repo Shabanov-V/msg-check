@@ -1,5 +1,9 @@
+import logging
+
 from googleapiclient.discovery import build
 from google.oauth2 import service_account
+
+logger = logging.getLogger(__name__)
 
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
 CALENDAR_SUMMARY = "Event Calendar"
@@ -38,4 +42,4 @@ class CalendarService:
         events = events_result.get('items', [])
         for event in events:
             self.service.events().delete(calendarId=self.calendar_id, eventId=event['id']).execute()
-            print(f"Deleted event: {event.get('summary', event['id'])}")
+            logger.info("Deleted event: %s", event.get('summary', event['id']))

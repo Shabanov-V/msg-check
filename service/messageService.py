@@ -1,15 +1,20 @@
+import logging
+
 from telethon import TelegramClient
 from telethon.tl.types import PeerChannel
 from datetime import datetime
-from typing import List, Tuple, Any
+from typing import List, Tuple, Any, Dict
 import difflib
+import json
 
-from model.dialog import Dialog
+logger = logging.getLogger(__name__)
+
+from model.unifiedMessage import UnifiedMessage
 from service.util import Util
 from service.dbService import DBService
 from service.textAnalyzer import TextAnalyzer
 from service.calendarService import CalendarService
-from tenacity import retry, stop_after_attempt, wait_fixed
+from service.runContext import RunContext
 
 
 class MessageService:
@@ -27,361 +32,305 @@ class MessageService:
         self.calendar_service = calendar_service
         self.env = env
 
-    async def process_dialog(
+    async def process_sources(
         self,
-        dialog_object: Dialog,
+        sources: List[Any],
         sent_messages: List[str],
+        run_ctx: RunContext = None,
     ) -> Tuple[int, int, int]:
-        last_processed_message = self.db_service.get_last_processed_message(dialog_object.id)
-        if last_processed_message is None:
-            last_processed_message = -1
+        """
+        Process all messages from all sources at once.
+        """
+        Util.reset_offset()
+        all_messages: List[UnifiedMessage] = []
+        # (source_name, message_id) -> {source, chat_info, message}
+        dialog_map: Dict[Tuple[str, str], dict] = {}
+        # Secondary index: bare message_id -> UnifiedMessage (for LLM result lookups)
+        msg_by_id: Dict[str, UnifiedMessage] = {}
+        # Track source instances by source_name for reference generation
+        source_map: Dict[str, Any] = {}
+        # Track chat-level data for DB updates
+        chat_latest: Dict[str, UnifiedMessage] = {}  # "source:chat_id" -> latest message
 
-        messages = await self.get_messages_with_retry(dialog_object.peer, last_processed_message)
-        messages = self.filter_recent_messages(messages)
-        if not messages:
-            return 0, 0, 0
-
-        dialog_name = messages[0].chat.title
-        self.db_service.store_dialog_name(dialog_object.id, dialog_name)
-        message_objects = list(reversed([Util.construct_message_object(m) for m in messages]))
-
-        try:
-            response = self.text_analyzer.findMessages(str(message_objects))
-        except Exception as e:
-            await self.client.send_message(
-                PeerChannel(self.env.error_dialog_id),
-                f'Error processing messages from dialog {dialog_name}, \nError: {e}'
-            )
-            return len(messages), 0, 0
-
-        messages_found_count = 0
-        events_found_count = 0
-        if response is not None:
-            results = response.get('results', [])
-            events = response.get('Events', [])
-            messages_found_count = len(results)
-            events_found_count = len(events)
-            message_ids = [item['message_id'] for item in results]
-            await self.handle_found_messages(messages, message_ids, sent_messages, dialog_name)
-            await self.handle_events(messages, events, dialog_name, dialog_object.id)
-        self.db_service.update_last_processed_message(dialog_object.id, messages[0].id, messages[-1].date)
-        return len(messages), messages_found_count, events_found_count
-
-    async def handle_found_messages(
-        self,
-        messages,
-        message_ids,
-        sent_messages,
-        dialog_name,
-    ):
-        messages_found = list(reversed([m for m in messages if m.id in message_ids]))
-        for message_found in messages_found:
-            if Util.is_message_in_list(message_found.message, sent_messages):
-                continue
+        for source in sources:
+            source_map[source.source_name] = source
             try:
-                await Util.send_message_report(self.client, message_found, self.env.output_dialog_id)
+                chats = await source.get_target_chats()
             except Exception as e:
                 await self.client.send_message(
                     PeerChannel(self.env.error_dialog_id),
-                    f'Error processing message {message_found.id},\nFrom char: {dialog_name},\nError: {e}'
+                    f'Error getting chats from {source.source_name}.\nError: {e}'
                 )
-            sent_messages.append(message_found.message)
+                continue
 
-    async def handle_events(
-        self,
-        messages,
-        events,
-        dialog_name,
-        dialog_id,
-    ):
-        for event in events:
-            try:
-                # Find message by both chat_id and message_id
-                message = next(
-                    (
-                        m for m in messages
-                        if str(m.id) == str(event['message_id'])
-                        and str(getattr(m.chat, "id", None) or getattr(m.to_id, "channel_id", None)) == str(event['chat_id'])
-                    ),
-                    None
-                )
-                start_datetime = datetime.fromisoformat(event['start_datetime'])
-                end_datetime = datetime.fromisoformat(event['end_datetime'])
-
-                # Check for duplicates using local fuzzy matching
-                candidates = self.db_service.get_events_starting_around(start_datetime, window_minutes=120)
-                is_duplicate = False
-                existing_google_event_id = None
-
-                for candidate in candidates:
-                    # candidate structure: (id, dialog_id, event_id, google_event_id, title, start_time, end_time, description, created_at)
-                    # Note: index 4 is title, index 3 is google_event_id (based on new schema order)
-                    # Let's verify index by name if possible, but tuple is returned.
-                    # Schema: id, dialog_id, event_id, google_event_id, title, start_time, end_time, description, created_at
-                    candidate_title = candidate[4]
-                    candidate_google_id = candidate[3]
-                    
-                    similarity = difflib.SequenceMatcher(None, event['title'], candidate_title).ratio()
-                    if similarity > 0.6 or event['title'] in candidate_title or candidate_title in event['title']:
-                        is_duplicate = True
-                        existing_google_event_id = candidate_google_id
-                        print(f"Duplicate event detected: '{event['title']}' is similar to '{candidate_title}' (score: {similarity:.2f})")
-                        break
-                
-                if is_duplicate:
-                    # Store association but skip creation
-                    self.db_service.store_calendar_event(
-                        dialog_id=dialog_id,
-                        event_id=event['message_id'],
-                        title=event['title'],
-                        start_time=start_datetime,
-                        end_time=end_datetime,
-                        description=event['description'],
-                        google_event_id=existing_google_event_id
+            for chat in chats:
+                try:
+                    messages = await source.fetch_messages(chat)
+                except Exception as e:
+                    await self.client.send_message(
+                        PeerChannel(self.env.error_dialog_id),
+                        f'Error fetching messages for {source.source_name} chat {chat.chat_id}.\nError: {e}'
                     )
                     continue
 
-                created_event = self.calendar_service.create_event(
-                    name=event['title'],
-                    description=event['description'] + '\n\n{}'.format(Util.get_message_link(message)),
-                    start_datetime=start_datetime,
-                    end_datetime=end_datetime
-                )
-                
-                google_event_id = created_event.get('id')
+                if not messages:
+                    continue
 
-                self.db_service.store_calendar_event(
-                    dialog_id=dialog_id,
-                    event_id=event['message_id'],
-                    title=event['title'],
-                    start_time=start_datetime,
-                    end_time=end_datetime,
-                    description=event['description'],
-                    google_event_id=google_event_id
-                )
-            except Exception as e:
-                await self.client.send_message(
-                    PeerChannel(self.env.error_dialog_id),
-                    f'Error creating event from message {event["message_id"]},\nFrom chat: {dialog_name},\nError: {e}'
-                )
-    @retry(stop=stop_after_attempt(5), wait=wait_fixed(10))
-    async def get_messages_with_retry(self, dialog_peer, last_processed_message):
-        return await self.client.get_messages(dialog_peer, min_id=last_processed_message, limit=10000)
-    
-    def filter_recent_messages(self, messages):
-        from datetime import timedelta
-        one_day_ago = (datetime.now() - timedelta(days=1)).timestamp()
-        return [m for m in messages if m.date.timestamp() > one_day_ago]
+                dialog_id = f"{source.source_name}:{chat.chat_id}"
+                chat_title = chat.chat_title or (messages[0].chat_title if messages else '')
+                if chat_title:
+                    self.db_service.store_dialog_name(dialog_id, chat_title)
 
-    async def process_dialogs(
-        self,
-        dialog_objects: List[Dialog],
-        sent_messages: List[str],
-    ) -> Tuple[int, int, int]:
-        """
-        Process all messages from all dialogs at once.
-        """
-        all_messages = []
-        dialog_map = {}
+                if run_ctx:
+                    run_ctx.record_messages_fetched(source.source_name, chat.chat_id, chat_title, len(messages))
 
-        # Gather all messages from all dialogs
-        for dialog_object in dialog_objects:
-            last_processed_message = self.db_service.get_last_processed_message(dialog_object.id)
-            if last_processed_message is None:
-                last_processed_message = -1
+                for m in messages:
+                    dialog_map[(m.source, m.message_id)] = {
+                        "source": source,
+                        "chat_id": m.chat_id,
+                        "chat_title": m.chat_title or chat_title,
+                        "message": m,
+                    }
+                    msg_by_id[m.message_id] = m
 
-            try:
-                messages = await self.get_messages_with_retry(dialog_object.peer, last_processed_message)
-            except Exception as e:
-                await self.client.send_message(
-                    PeerChannel(self.env.error_dialog_id),
-                    f'Error fetching messages for dialog {dialog_object.id}.\nError: {e}'
-                )
-                continue
-            messages = self.filter_recent_messages(messages)
-            if not messages:
-                continue
+                all_messages.extend(messages)
 
-            dialog_name = messages[0].chat.title
-            self.db_service.store_dialog_name(dialog_object.id, dialog_name)
-            for m in messages:
-                dialog_map[m.id] = {
-                    "dialog_object": dialog_object,
-                    "dialog_name": dialog_name,
-                    "message": m
-                }
-            all_messages.extend(messages)
+                # Track latest message per chat for cursor updates
+                latest = max(messages, key=lambda m: m.timestamp)
+                if dialog_id not in chat_latest or latest.timestamp > chat_latest[dialog_id].timestamp:
+                    chat_latest[dialog_id] = latest
 
         if not all_messages:
             return 0, 0, 0
 
-        # Sort messages by date (Newest -> Oldest)
-        all_messages.sort(key=lambda m: m.date, reverse=True)
+        # Sort messages by timestamp (newest first)
+        all_messages.sort(key=lambda m: m.timestamp, reverse=True)
 
-        # Limit to 500 messages (taking the oldest 500 to ensure contiguous processing)
-        # This prevents hitting the analyzer's content length limit while ensuring we process the backlog in order.
+        # Limit to 500 messages (take oldest 500 for contiguous processing)
         if len(all_messages) > 500:
             all_messages = all_messages[-500:]
-        
+
         # Prepare message objects for analyzer
-        message_objects = list(reversed([Util.construct_message_object(m) for m in all_messages]))
+        message_objects = list(reversed([
+            Util.construct_message_object(m, self.env.timezone) for m in all_messages
+        ]))
 
         try:
-            response = self.text_analyzer.findMessages(str(message_objects))
+            response = self.text_analyzer.findMessages(json.dumps(message_objects, ensure_ascii=False))
         except Exception as e:
             await self.client.send_message(
                 PeerChannel(self.env.error_dialog_id),
-                f'Error processing messages from all dialogs.\nError: {e}'
+                f'Error processing messages from all sources.\nError: {e}'
             )
+            if run_ctx:
+                run_ctx.record_error(f"LLM call failed: {e}")
             return len(all_messages), 0, 0
 
         messages_found_count = 0
         events_found_count = 0
+
         if response is not None:
             results = response.get('results', [])
             events = response.get('Events', [])
+            borderline = response.get('borderline', [])
+            meta = response.get('_meta', {})
             messages_found_count = len(results)
             events_found_count = len(events)
             message_ids = [item['message_id'] for item in results]
-            # Handle found messages
-            messages_found = list(reversed([m for m in all_messages if str(m.id) in message_ids]))
 
-            # Check for ID mismatch
-            # Check for ID mismatch and attempt fallback
+            # Record LLM metadata into RunContext
+            if run_ctx and meta:
+                run_ctx.llm_phase1_duration_sec = meta.get('phase1_duration_sec', 0.0)
+                run_ctx.llm_phase2_duration_sec = meta.get('phase2_duration_sec', 0.0)
+                run_ctx.llm_phase1_tokens = meta.get('phase1_tokens')
+                run_ctx.llm_phase2_tokens = meta.get('phase2_tokens')
+
+            # Record borderline messages
+            if run_ctx and borderline:
+                for b in borderline:
+                    b_msg = msg_by_id.get(b.get('message_id', ''))
+                    b_chat_title = b_msg.chat_title if b_msg else b.get('chat_id', '')
+                    run_ctx.record_borderline(
+                        b.get('message_id', ''), b_chat_title,
+                        b.get('text', ''), b.get('exclusion_reason', ''),
+                    )
+
+            # Find matched messages
+            messages_found = list(reversed([
+                m for m in all_messages if m.message_id in message_ids
+            ]))
+
+            # Hallucination recovery: check for ID mismatch
             if len(messages_found) < messages_found_count:
-                missing_ids = [mid for mid in message_ids if mid not in [str(m.id) for m in messages_found]]
-                
-                # Fallback: Try to find messages by text content
+                missing_ids = [mid for mid in message_ids if mid not in [m.message_id for m in messages_found]]
+
                 recovered_messages = []
                 for missing_id in missing_ids:
-                    # Find the result object for this missing ID to get the text
                     missing_result = next((r for r in results if r['message_id'] == missing_id), None)
                     if not missing_result:
                         continue
-                        
+
                     missing_text = missing_result.get('text', '')
-                    # Search in all_messages for a match
                     for m in all_messages:
-                        # Skip if already found
                         if m in messages_found or m in recovered_messages:
                             continue
-                        
-                        # Use loose matching or exact cleaning match
-                        if Util.construct_message_text(m).strip() == missing_text.strip(): # Strip to normalize
-                             recovered_messages.append(m)
-                             # Update the result's message_id to the real one so downstream logic works
-                             missing_result['message_id'] = str(m.id)
-                             # Update event message_ids as well if any events are linked to this hallucinated ID
-                             for event in events:
-                                 if event['message_id'] == missing_id:
-                                     event['message_id'] = str(m.id)
-                             break
-                
+
+                        if m.text.strip() == missing_text.strip():
+                            recovered_messages.append(m)
+                            # Update result's message_id to the real one
+                            missing_result['message_id'] = m.message_id
+                            # Update msg_by_id index
+                            msg_by_id[m.message_id] = m
+                            # Update event message_ids linked to this hallucinated ID
+                            for event in events:
+                                if event['message_id'] == missing_id:
+                                    event['message_id'] = m.message_id
+                            break
+
                 if recovered_messages:
                     messages_found.extend(recovered_messages)
+                    if run_ctx:
+                        run_ctx.hallucination_recoveries = len(recovered_messages)
                     await self.client.send_message(
                         PeerChannel(self.env.error_dialog_id),
                         f'Info: Recovered {len(recovered_messages)} messages via text fallback.\n'
                         f'Original Missing IDs: {missing_ids}\n'
-                        f'Recovered IDs: {[m.id for m in recovered_messages]}'
+                        f'Recovered IDs: {[m.message_id for m in recovered_messages]}'
                     )
 
-                # Re-check for remaining missing IDs
                 if len(messages_found) < messages_found_count:
-                    still_missing_ids = [mid for mid in message_ids if mid not in [str(m.id) for m in messages_found]]
-                     # Note: This list might be slightly misleading if we recovered messages but the IDs don't match anymore. 
-                     # But it's good enough to show what was originally asked for.
-                    
+                    still_missing_ids = [mid for mid in message_ids if mid not in [m.message_id for m in messages_found]]
+                    if run_ctx:
+                        run_ctx.still_missing_ids = still_missing_ids
                     await self.client.send_message(
                         PeerChannel(self.env.error_dialog_id),
                         f'Warning: LLM found {messages_found_count} messages, but only {len(messages_found)} were matched (including fallback).\n'
-                        f'Still Missing IDs: {still_missing_ids}\n'
-                        f'Dialogs processed: {[d.id for d in dialog_objects]}'
+                        f'Still Missing IDs: {still_missing_ids}'
                     )
-            
+
+            # Handle found messages
+            # Build a lookup for reason from results
+            reason_lookup = {r['message_id']: r.get('reason', '') for r in results}
+
             for message_found in messages_found:
-                dialog_info = dialog_map.get(message_found.id)
+                dialog_info = dialog_map.get((message_found.source, message_found.message_id))
                 if not dialog_info:
                     continue
-                dialog_name = dialog_info["dialog_name"]
-                if Util.is_message_in_list(message_found.message, sent_messages):
+                chat_title = dialog_info["chat_title"]
+                if Util.is_message_in_list(message_found.text, sent_messages):
+                    if run_ctx:
+                        run_ctx.record_dedup_skip(message_found.message_id, chat_title, message_found.text)
                     continue
+                # Record match
+                if run_ctx:
+                    run_ctx.record_match(
+                        message_found.message_id, chat_title, message_found.text,
+                        reason_lookup.get(message_found.message_id, ''),
+                        source=message_found.source, chat_id=message_found.chat_id,
+                    )
                 try:
-                    await Util.send_message_report(self.client, message_found, self.env.output_dialog_id)
+                    source = dialog_info["source"]
+                    await Util.send_message_report(self.client, message_found, self.env.output_dialog_id, source)
                 except Exception as e:
                     await self.client.send_message(
                         PeerChannel(self.env.error_dialog_id),
-                        f'Error processing message {message_found.id},\nFrom chat: {dialog_name},\nError: {e}'
+                        f'Error processing message {message_found.message_id},\n'
+                        f'From chat: {chat_title},\nError: {e}'
                     )
-                sent_messages.append(message_found.message)
+                    if run_ctx:
+                        run_ctx.record_error(f"Report error for {message_found.message_id}: {e}")
+                sent_messages.append(message_found.text)
+
             # Handle events
             for event in events:
-                dialog_info = dialog_map.get(int(event['message_id']))
-                if not dialog_info:
+                event_msg_id = event['message_id']
+                msg = msg_by_id.get(event_msg_id)
+                if not msg:
                     continue
-                dialog_name = dialog_info["dialog_name"]
-                dialog_object = dialog_info["dialog_object"]
+                dialog_id = f"{msg.source}:{msg.chat_id}"
+                dialog_info = dialog_map.get((msg.source, msg.message_id))
+                chat_title = dialog_info["chat_title"] if dialog_info else msg.chat_title
                 try:
-                    message = dialog_info["message"]
-                    start_datetime = datetime.fromisoformat(event['start_datetime'])
-                    end_datetime = datetime.fromisoformat(event['end_datetime'])
-                    
-                    # Check for duplicates using local fuzzy matching
-                    candidates = self.db_service.get_events_starting_around(start_datetime, window_minutes=120)
-                    is_duplicate = False
-                    existing_google_event_id = None
-
-                    for candidate in candidates:
-                        # Schema: id, dialog_id, event_id, google_event_id, title, start_time, end_time, description, created_at
-                        candidate_title = candidate[4]
-                        candidate_google_id = candidate[3]
-                        
-                        similarity = difflib.SequenceMatcher(None, event['title'], candidate_title).ratio()
-                        if similarity > 0.6 or event['title'] in candidate_title or candidate_title in event['title']:
-                            is_duplicate = True
-                            existing_google_event_id = candidate_google_id
-                            print(f"Duplicate event detected: '{event['title']}' is similar to '{candidate_title}' (score: {similarity:.2f})")
-                            break
-                    
-                    if is_duplicate:
-                        self.db_service.store_calendar_event(
-                            dialog_id=dialog_object.id,
-                            event_id=event['message_id'],
-                            title=event['title'],
-                            start_time=start_datetime,
-                            end_time=end_datetime,
-                            description=event['description'],
-                            google_event_id=existing_google_event_id
-                        )
-                        continue
-
-                    created_event = self.calendar_service.create_event(
-                        name=event['title'],
-                        description=event['description'] + '\n\n{}'.format(Util.get_message_link(message)),
-                        start_datetime=start_datetime,
-                        end_datetime=end_datetime
-                    )
-                    google_event_id = created_event.get('id')
-
-                    self.db_service.store_calendar_event(
-                        dialog_id=dialog_object.id,
-                        event_id=event['message_id'],
-                        title=event['title'],
-                        start_time=start_datetime,
-                        end_time=end_datetime,
-                        description=event['description'],
-                        google_event_id=google_event_id
-                    )
+                    await self._process_single_event(event, msg, dialog_id, chat_title, run_ctx)
                 except Exception as e:
                     await self.client.send_message(
                         PeerChannel(self.env.error_dialog_id),
-                        f'Error creating event from message {event["message_id"]},\nFrom chat: {dialog_name},\nError: {e}'
+                        f'Error creating event from message {event_msg_id},\n'
+                        f'From chat: {chat_title},\nError: {e}'
                     )
-        # Update last processed message for each dialog
-        for dialog_object in dialog_objects:
-            dialog_messages = [m for m in all_messages if dialog_map[m.id]["dialog_object"].id == dialog_object.id]
-            if dialog_messages:
-                self.db_service.update_last_processed_message(
-                    dialog_object.id, dialog_messages[0].id, dialog_messages[-1].date
-                )
+                    if run_ctx:
+                        run_ctx.record_error(f"Event creation error for {event_msg_id}: {e}")
+
+        # Update last processed message for each chat
+        for dialog_id, latest_msg in chat_latest.items():
+            self.db_service.update_last_processed_message(
+                dialog_id, latest_msg.message_id, latest_msg.timestamp
+            )
+
         return len(all_messages), messages_found_count, events_found_count
+
+    async def _process_single_event(self, event: dict, message: UnifiedMessage, dialog_id: str, dialog_name: str, run_ctx: RunContext = None):
+        """Dedup-check and create/store a single calendar event."""
+        start_datetime = datetime.fromisoformat(event['start_datetime'])
+        end_datetime = datetime.fromisoformat(event['end_datetime'])
+
+        candidates = self.db_service.get_events_starting_around(start_datetime, window_minutes=120)
+        is_duplicate = False
+        existing_google_event_id = None
+        matched_title = ""
+        matched_similarity = 0.0
+
+        for candidate in candidates:
+            candidate_title = candidate[4]
+            candidate_google_id = candidate[3]
+            similarity = difflib.SequenceMatcher(None, event['title'], candidate_title).ratio()
+            if similarity > 0.6 or event['title'] in candidate_title or candidate_title in event['title']:
+                is_duplicate = True
+                existing_google_event_id = candidate_google_id
+                matched_title = candidate_title
+                matched_similarity = similarity
+                logger.info("Duplicate event detected: '%s' is similar to '%s' (score: %.2f)", event['title'], candidate_title, similarity)
+                break
+
+        if run_ctx:
+            run_ctx.record_event(event['title'], is_duplicate, matched_similarity, matched_title)
+
+        if is_duplicate:
+            self.db_service.store_calendar_event(
+                dialog_id=dialog_id,
+                event_id=event['message_id'],
+                title=event['title'],
+                start_time=start_datetime,
+                end_time=end_datetime,
+                description=event['description'],
+                google_event_id=existing_google_event_id
+            )
+            return
+
+        # Build description with source-appropriate reference
+        if message.source == "telegram" and message.raw is not None:
+            from source.telegramSource import TelegramSource
+            msg_link = TelegramSource._get_message_link(message.raw)
+            description = event['description'] + f'\n\n{msg_link}'
+        elif message.source == "whatsapp":
+            description = event['description'] + f'\n\n[WhatsApp] {message.chat_title}'
+        else:
+            description = event['description']
+
+        created_event = self.calendar_service.create_event(
+            name=event['title'],
+            description=description,
+            start_datetime=start_datetime,
+            end_datetime=end_datetime
+        )
+        google_event_id = created_event.get('id')
+
+        self.db_service.store_calendar_event(
+            dialog_id=dialog_id,
+            event_id=event['message_id'],
+            title=event['title'],
+            start_time=start_datetime,
+            end_time=end_datetime,
+            description=event['description'],
+            google_event_id=google_event_id
+        )

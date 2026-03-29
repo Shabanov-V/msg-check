@@ -1,67 +1,52 @@
 from zoneinfo import ZoneInfo
 from telethon import TelegramClient
-from telethon.tl.types import Message, PeerChannel, PeerUser, Chat
+from telethon.tl.types import PeerChannel
 from datetime import timedelta
-import asyncio
+from model.unifiedMessage import UnifiedMessage
 
 class Util:
 
     _offset = 0
 
     @staticmethod
-    def get_message_link(message: Message):
-        if isinstance(message.chat, Chat):
-            return 'From chat: {}'.format(message.chat.title)
-        if (hasattr(message.chat, 'has_link') and message.chat.has_link and message.chat.username is not None):
-            return 'https://t.me/{}/{}'.format(message.chat.username, message.id)
-        else:
-            return 'https://t.me/c/{}/{}'.format(message.chat.id, message.id)
+    def reset_offset():
+        Util._offset = 0
 
     @staticmethod
-    async def send_message_report(client: TelegramClient, message: Message, output_dialog_id: int):
-        if (message is None):
+    async def send_message_report(client: TelegramClient, message: UnifiedMessage, output_dialog_id: int, source):
+        if message is None:
             return None
-        
-        message_link = Util.get_message_link(message)
 
-        # Send message with delay to mark as unread
-        await client.send_message(
-            PeerChannel(output_dialog_id), 
-            message_link, 
-            link_preview=False, 
-            schedule=timedelta(seconds=60 + Util._offset * 60)
+        report_text = source.get_message_reference(message)
+
+        if message.source == "telegram":
+            await client.send_message(
+                PeerChannel(output_dialog_id),
+                report_text,
+                parse_mode='html',
+                link_preview=False,
+                schedule=timedelta(seconds=60 + Util._offset * 60),
             )
-        await client.forward_messages(
-            PeerChannel(output_dialog_id), 
-            message, 
-            schedule=timedelta(seconds=90 + Util._offset * 60)
+        else:
+            await client.send_message(
+                PeerChannel(output_dialog_id),
+                report_text,
+                link_preview=False,
+                schedule=timedelta(seconds=60 + Util._offset * 60),
             )
 
         Util._offset += 1
 
     @staticmethod
-    def construct_message_object(message: Message):
+    def construct_message_object(message: UnifiedMessage, timezone_name: str = "Europe/Madrid"):
         return {
-            'chat_title': message.chat.title,
-            'chat_id': message.chat.id,
-            'text': Util.construct_message_text(message),
-            'message_id': message.id,
-            'datetime': message.date.astimezone(ZoneInfo("Europe/Madrid")).isoformat(),
+            'source': message.source,
+            'chat_title': message.chat_title,
+            'chat_id': message.chat_id,
+            'text': message.text,
+            'message_id': message.message_id,
+            'datetime': message.timestamp.astimezone(ZoneInfo(timezone_name)).isoformat(),
         }
-    
-    @staticmethod
-    def construct_message_text(message: Message):
-        return f"{message.text}\n{Util.get_poll_question_text(message)}" if message.text else Util.get_poll_question_text(message)
-
-    @staticmethod
-    def get_poll_question_text(message: Message):
-        """
-        Safely returns the poll question text if it exists, otherwise returns an empty string.
-        """
-        try:
-            return message.media.poll.question.text
-        except AttributeError:
-            return ""
 
     @staticmethod
     def is_message_in_list(str1: str, str_list: list) -> bool:
@@ -69,6 +54,8 @@ class Util:
         Returns True if str1 matches any string in str_list,
         comparing only letters and ignoring newlines and case.
         """
+        if not str1:
+            return False
         str1_clean = ''.join(filter(str.isalpha, str1.replace('\n', ''))).lower()
         for s in str_list:
             s_clean = ''.join(filter(str.isalpha, s.replace('\n', ''))).lower()

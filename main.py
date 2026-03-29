@@ -1,41 +1,30 @@
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+)
+logger = logging.getLogger(__name__)
+
 from telethon import TelegramClient
 from model.envLoader import EnvLoader
 from service.textAnalyzer import TextAnalyzer
 from service.calendarService import CalendarService
-from telethon.tl import functions
+from telethon.tl.types import PeerChannel
 from service.dbService import DBService
-from telethon.tl.types import PeerChannel, InputPeerChannel, InputPeerChat, InputPeerUser
-from datetime import datetime, timedelta
-from service.util import Util
-from tenacity import retry, stop_after_attempt, wait_fixed
-from model.dialog import Dialog
-from model.dialogType import DialogType
 from service.messageService import MessageService
+from service.runContext import RunContext
+from service.reportGenerator import ReportGenerator
+from source.telegramSource import TelegramSource
+from source.whatsappSource import WhatsAppSource
 
 env = EnvLoader()
 client = TelegramClient('main', env.telegram_api_id, env.telegram_api_hash)
 
 
-@retry(stop=stop_after_attempt(5), wait=wait_fixed(10))
-async def get_dialog_filters_with_retry(client):
-    return await client(functions.messages.GetDialogFiltersRequest())
-
-def build_dialog_object(peer):
-    if type(peer) == InputPeerChannel:
-        return Dialog(peer.channel_id, DialogType.CHANNEL)
-    elif type(peer) == InputPeerChat:
-        return Dialog(peer.chat_id, DialogType.CHAT)
-    elif type(peer) == InputPeerUser:
-        return Dialog(peer.user_id, DialogType.USER)
-
-def get_target_dialog_objects(filters, env):
-    for dialog_filter in filters:
-        if hasattr(dialog_filter, 'id') and dialog_filter.title == env.target_dialog_filter:
-            return list(map(lambda peer: build_dialog_object(peer), dialog_filter.include_peers))
-    return []
-
 async def main():
-    text_analyzer = TextAnalyzer(env.openrouter_api_key, env.base_prompt, env.llm_model)
+    text_analyzer = TextAnalyzer(env.openrouter_api_key, env.base_prompt, env.phase2_prompt, env.llm_model, env.timezone)
     await client.start()
     db_service = DBService()
     sent_messages = []
@@ -49,10 +38,6 @@ async def main():
         )
         return
 
-    except Exception as e:
-        print(f"Error initializing services: {e}")
-        return
-
     message_service = MessageService(
         client=client,
         db_service=db_service,
@@ -61,30 +46,53 @@ async def main():
         env=env,
     )
 
-    filters = await get_dialog_filters_with_retry(client)
-    target_dialog_objects = get_target_dialog_objects(filters, env)
+    # Build list of healthy sources
+    sources = []
 
-    # Collect all peers from all target dialogs
-    all_peers = []
-    for dialog_object in target_dialog_objects:
-        all_peers.append(dialog_object)
+    # Telegram source (always enabled)
+    telegram_source = TelegramSource(client, env, db_service)
+    sources.append(telegram_source)
 
-    total_messages_processed = 0
-    total_messages_found = 0
-    total_events_found = 0
+    # WhatsApp source (optional)
+    if env.whatsapp_enabled:
+        whatsapp_source = WhatsAppSource(
+            waha_url=env.waha_api_url,
+            waha_api_key=env.waha_api_key,
+            session_name=env.waha_session,
+            target_label=env.whatsapp_target_label,
+            timezone_name=env.timezone,
+            db_service=db_service,
+        )
+        if await whatsapp_source.check_health():
+            sources.append(whatsapp_source)
+        else:
+            await client.send_message(
+                PeerChannel(env.error_dialog_id),
+                'Warning: WhatsApp source is not healthy (WAHA session not WORKING). Skipping WhatsApp.'
+            )
 
-    # Process all messages from all dialogs at once
-    processed, messages_found, events_found = await message_service.process_dialogs(
-        all_peers, sent_messages
+    # Log startup configuration
+    logger.info("=== Run started ===")
+    logger.info("Sources: %s", ", ".join(s.source_name for s in sources))
+    logger.info("LLM Model: %s", env.llm_model)
+    logger.info("Timezone: %s", env.timezone)
+    logger.info("Verbosity: %s", env.log_verbosity)
+
+    # Process all messages from all sources at once
+    run_ctx = RunContext()
+    processed, messages_found, events_found = await message_service.process_sources(
+        sources, sent_messages, run_ctx
     )
-    total_messages_processed += processed
-    total_messages_found += messages_found
-    total_events_found += events_found
 
-    await client.send_message(
-        PeerChannel(env.error_dialog_id),
-        f'Execution completed.\nMessages processed: {total_messages_processed},\nMessages found: {total_messages_found},\nEvents found: {total_events_found}'
+    run_ctx.finalize()
+    db_service.store_run(run_ctx, env.log_verbosity)
+
+    report_gen = ReportGenerator(env.log_verbosity)
+    report_messages = report_gen.generate(
+        run_ctx, db_service if env.log_verbosity == 'verbose' else None
     )
+    for msg in report_messages:
+        await client.send_message(PeerChannel(env.error_dialog_id), msg)
 
 with client:
     client.loop.run_until_complete(main())
