@@ -110,6 +110,34 @@ The schema is enforced via `response_format={"type": "json_schema", "json_schema
 
 A key resilience feature: the LLM sometimes returns `message_id` values that don't correspond to real messages (hallucinations). The system recovers via text-content fallback matching.
 
+---
+
+## 5. Integration Testing
+
+The system includes a dedicated integration test suite in `tests/` for verifying and optimizing LLM prompts without requiring real Telegram/WhatsApp connections.
+
+### 5.1 `tests/integration_tester.py`
+
+| Feature | Detail |
+|---------|--------|
+| **Mock Metadata** | Generates random `message_id`, `source`, and `datetime` (last 30 days) for test cases. |
+| **Batching** | Sends all test cases in a single LLM call to simulate production message density. |
+| **Pass/Fail Logic** | Compares LLM classification results against `expected.found` boolean in JSON. |
+| **Custom Prompts** | Supports `--prompt` flag to test new prompt versions against the same corpus. |
+| **Context** | Supports `chat_title` in test cases to provide platform context to the LLM. |
+
+### 5.2 Test Case Format (`tests/test_cases.json`)
+
+```json
+{
+  "text": "Meeting tomorrow at 5pm",
+  "chat_title": "Project Alpha",
+  "expected": {
+    "found": true
+  }
+}
+```
+
 ```mermaid
 flowchart TD
     accTitle: LLM Hallucination Recovery

@@ -137,6 +137,7 @@ graph TB
 | `service/dbService.py`        | SQLite persistence for dialogs and calendar events             | [Data Model](data-model.design.md)                   |
 | `service/calendarService.py`  | Google Calendar event creation via service account             | [Calendar & Dedup](calendar-deduplication.design.md)  |
 | `service/util.py`             | Message formatting, link generation, dedup helpers             | [Message Processing](message-processing.design.md)   |
+| `tests/integration_tester.py` | Integration test system for prompt engineering and verification | [LLM Integration](llm-integration.design.md)         |
 
 ---
 
@@ -235,7 +236,7 @@ The script is designed for **periodic batch execution** (e.g., every hour via cr
 | 3 | Telegram rate limits | Medium | Tenacity retry with 10s wait, up to 5 attempts |
 | 4 | 500-message batch limit may miss messages | Low | Processes oldest first; next run picks up remainder |
 | 5 | Fuzzy dedup threshold (0.6) may be too loose/tight | Low | Tunable; combined with substring check for safety |
-| 6 | No unit test suite | Medium | `verify_deduplication.py` exists as a standalone test; full test coverage not implemented |
+| 6 | No unit test suite | Medium | `tests/integration_tester.py` provides end-to-end prompt verification; `verify_deduplication.py` exists as a standalone test; full unit test coverage not implemented |
 | 7 | Single-threaded processing | Low | Adequate for personal use; batch size is bounded |
 | 8 | SQLite single-writer limitation | Low | Single-user system; no concurrent writes expected |
 | 9 | Service account credentials stored as file | Low | Standard for server-side Google API auth; should be excluded from version control |
