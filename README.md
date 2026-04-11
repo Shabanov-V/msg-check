@@ -93,6 +93,39 @@ Messages found: 12,
 Events found: 3
 ```
 
+## Integration Testing
+
+You can use the integration test system to verify and tune your LLM prompts.
+
+### Running Tests
+To run the tests with the default test cases and prompt:
+```bash
+python tests/integration_tester.py
+```
+
+### Adding Test Cases
+Add new test cases to `tests/test_cases.json` in the following format:
+```json
+[
+  {
+    "text": "Your message text here",
+    "expected": {
+      "found": true
+    }
+  }
+]
+```
+
+### Testing Custom Prompts
+To test a specific prompt file:
+```bash
+python tests/integration_tester.py --prompt path/to/your.prompt
+```
+
+### Options
+- `--cases`: Path to the test cases JSON file (default: `tests/test_cases.json`).
+- `--prompt`: Path to an optional custom prompt file to use instead of the one defined in `.env`.
+
 ## Project Structure
 ```
 .
