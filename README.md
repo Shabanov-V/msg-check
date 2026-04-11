@@ -109,6 +109,7 @@ Add new test cases to `tests/test_cases.json` in the following format:
 [
   {
     "text": "Your message text here",
+    "chat_title": "Optional Group Name",
     "expected": {
       "found": true
     }
