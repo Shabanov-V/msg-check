@@ -12,13 +12,13 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from service.textAnalyzer import TextAnalyzer
 from model.envLoader import EnvLoader
 
-def generate_random_metadata(index: int) -> Dict[str, Any]:
+def generate_random_metadata(index: int, override_chat_title: str = None) -> Dict[str, Any]:
     """Generates random metadata for a message."""
     sources = ["telegram", "whatsapp"]
     source = random.choice(sources)
     chat_id = f"chat_{random.randint(1000, 9999)}"
     message_id = f"msg_{index}_{random.randint(10000, 99999)}"
-    chat_title = f"Test Group {random.randint(1, 100)}"
+    chat_title = override_chat_title or f"Test Group {random.randint(1, 100)}"
 
     # Random date within the last month
     days_ago = random.randint(0, 30)
@@ -46,7 +46,7 @@ def run_tests(test_cases_file: str, prompt_file: str = None):
     expectations = {} # message_id -> expected outcome
 
     for i, case in enumerate(test_cases):
-        metadata = generate_random_metadata(i)
+        metadata = generate_random_metadata(i, case.get('chat_title'))
         msg_id = metadata['message_id']
         messages_to_analyze.append({
             **metadata,
@@ -101,7 +101,8 @@ def run_tests(test_cases_file: str, prompt_file: str = None):
         if status == "PASS":
             passed_count += 1
 
-        print(f"[{status}] Text: {msg['text'][:100]}{'...' if len(msg['text']) > 100 else ''}")
+        print(f"[{status}] Chat: {msg['chat_title']}")
+        print(f"      Text: {msg['text'][:100]}{'...' if len(msg['text']) > 100 else ''}")
         print(f"      Expected Found: {expected['found']}, Actual Found: {actual_found}")
 
         if actual_found:
