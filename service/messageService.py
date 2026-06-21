@@ -15,6 +15,9 @@ from service.dbService import DBService
 from service.textAnalyzer import TextAnalyzer
 from service.calendarService import CalendarService
 from service.runContext import RunContext
+from service.llmJoin import assign_handles, resolve_llm_results
+from service.decisionLog import build_decision_rows
+import hashlib
 
 
 class MessageService:
@@ -43,10 +46,9 @@ class MessageService:
         """
         Util.reset_offset()
         all_messages: List[UnifiedMessage] = []
-        # (source_name, message_id) -> {source, chat_info, message}
-        dialog_map: Dict[Tuple[str, str], dict] = {}
-        # Secondary index: bare message_id -> UnifiedMessage (for LLM result lookups)
-        msg_by_id: Dict[str, UnifiedMessage] = {}
+        # (source, chat_id, message_id) -> {source, chat_info, message}
+        # Composite key: message_id alone collides across chats.
+        dialog_map: Dict[Tuple[str, str, str], dict] = {}
         # Track source instances by source_name for reference generation
         source_map: Dict[str, Any] = {}
         # Track chat-level data for DB updates
@@ -85,13 +87,12 @@ class MessageService:
                     run_ctx.record_messages_fetched(source.source_name, chat.chat_id, chat_title, len(messages))
 
                 for m in messages:
-                    dialog_map[(m.source, m.message_id)] = {
+                    dialog_map[(m.source, m.chat_id, m.message_id)] = {
                         "source": source,
                         "chat_id": m.chat_id,
                         "chat_title": m.chat_title or chat_title,
                         "message": m,
                     }
-                    msg_by_id[m.message_id] = m
 
                 all_messages.extend(messages)
 
@@ -110,10 +111,13 @@ class MessageService:
         if len(all_messages) > 500:
             all_messages = all_messages[-500:]
 
-        # Prepare message objects for analyzer
-        message_objects = list(reversed([
-            Util.construct_message_object(m, self.env.timezone) for m in all_messages
-        ]))
+        # Prepare message objects for analyzer. Hand the LLM run-unique synthetic
+        # handles ("m0", "m1", ...) instead of real message_ids, which collide
+        # across chats and make the result->message join ambiguous (see llmJoin).
+        ordered_messages = list(reversed(all_messages))
+        message_objects = assign_handles([
+            Util.construct_message_object(m, self.env.timezone) for m in ordered_messages
+        ])
 
         try:
             response = self.text_analyzer.findMessages(json.dumps(message_objects, ensure_ascii=False))
@@ -130,13 +134,9 @@ class MessageService:
         events_found_count = 0
 
         if response is not None:
-            results = response.get('results', [])
-            events = response.get('Events', [])
-            borderline = response.get('borderline', [])
             meta = response.get('_meta', {})
-            messages_found_count = len(results)
-            events_found_count = len(events)
-            message_ids = [item['message_id'] for item in results]
+            messages_found_count = len(response.get('results', []))
+            events_found_count = len(response.get('Events', []))
 
             # Record LLM metadata into RunContext
             if run_ctx and meta:
@@ -145,79 +145,44 @@ class MessageService:
                 run_ctx.llm_phase1_tokens = meta.get('phase1_tokens')
                 run_ctx.llm_phase2_tokens = meta.get('phase2_tokens')
 
+            # Resolve handles back to real messages (collision-safe join + recovery).
+            resolved = resolve_llm_results(ordered_messages, response)
+
             # Record borderline messages
-            if run_ctx and borderline:
-                for b in borderline:
-                    b_msg = msg_by_id.get(b.get('message_id', ''))
-                    b_chat_title = b_msg.chat_title if b_msg else b.get('chat_id', '')
+            if run_ctx:
+                for b_msg, exclusion_reason in resolved.borderline:
                     run_ctx.record_borderline(
-                        b.get('message_id', ''), b_chat_title,
-                        b.get('text', ''), b.get('exclusion_reason', ''),
+                        b_msg.message_id, b_msg.chat_title, b_msg.text, exclusion_reason,
                     )
 
-            # Find matched messages
-            messages_found = list(reversed([
-                m for m in all_messages if m.message_id in message_ids
-            ]))
-
-            # Hallucination recovery: check for ID mismatch
-            if len(messages_found) < messages_found_count:
-                missing_ids = [mid for mid in message_ids if mid not in [m.message_id for m in messages_found]]
-
-                recovered_messages = []
-                for missing_id in missing_ids:
-                    missing_result = next((r for r in results if r['message_id'] == missing_id), None)
-                    if not missing_result:
-                        continue
-
-                    missing_text = missing_result.get('text', '')
-                    for m in all_messages:
-                        if m in messages_found or m in recovered_messages:
-                            continue
-
-                        if m.text.strip() == missing_text.strip():
-                            recovered_messages.append(m)
-                            # Update result's message_id to the real one
-                            missing_result['message_id'] = m.message_id
-                            # Update msg_by_id index
-                            msg_by_id[m.message_id] = m
-                            # Update event message_ids linked to this hallucinated ID
-                            for event in events:
-                                if event['message_id'] == missing_id:
-                                    event['message_id'] = m.message_id
-                            break
-
-                if recovered_messages:
-                    messages_found.extend(recovered_messages)
-                    if run_ctx:
-                        run_ctx.hallucination_recoveries = len(recovered_messages)
-                    await self.client.send_message(
-                        PeerChannel(self.env.error_dialog_id),
-                        f'Info: Recovered {len(recovered_messages)} messages via text fallback.\n'
-                        f'Original Missing IDs: {missing_ids}\n'
-                        f'Recovered IDs: {[m.message_id for m in recovered_messages]}'
-                    )
-
-                if len(messages_found) < messages_found_count:
-                    still_missing_ids = [mid for mid in message_ids if mid not in [m.message_id for m in messages_found]]
-                    if run_ctx:
-                        run_ctx.still_missing_ids = still_missing_ids
-                    await self.client.send_message(
-                        PeerChannel(self.env.error_dialog_id),
-                        f'Warning: LLM found {messages_found_count} messages, but only {len(messages_found)} were matched (including fallback).\n'
-                        f'Still Missing IDs: {still_missing_ids}'
-                    )
+            # Hallucination recovery accounting
+            if resolved.recoveries:
+                if run_ctx:
+                    run_ctx.hallucination_recoveries = resolved.recoveries
+                await self.client.send_message(
+                    PeerChannel(self.env.error_dialog_id),
+                    f'Info: Recovered {resolved.recoveries} messages via text fallback.'
+                )
+            if resolved.still_missing:
+                if run_ctx:
+                    run_ctx.still_missing_ids = resolved.still_missing
+                await self.client.send_message(
+                    PeerChannel(self.env.error_dialog_id),
+                    f'Warning: {len(resolved.still_missing)} reported messages could not be matched.\n'
+                    f'Unresolved handles: {resolved.still_missing}'
+                )
 
             # Handle found messages
-            # Build a lookup for reason from results
-            reason_lookup = {r['message_id']: r.get('reason', '') for r in results}
-
-            for message_found in messages_found:
-                dialog_info = dialog_map.get((message_found.source, message_found.message_id))
-                if not dialog_info:
-                    continue
-                chat_title = dialog_info["chat_title"]
+            dedup_keys = set()
+            for message_found, reason in resolved.matched:
+                dialog_info = dialog_map.get(
+                    (message_found.source, message_found.chat_id, message_found.message_id)
+                )
+                chat_title = dialog_info["chat_title"] if dialog_info else message_found.chat_title
                 if Util.is_message_in_list(message_found.text, sent_messages):
+                    dedup_keys.add(
+                        (message_found.source, message_found.chat_id, message_found.message_id)
+                    )
                     if run_ctx:
                         run_ctx.record_dedup_skip(message_found.message_id, chat_title, message_found.text)
                     continue
@@ -225,11 +190,11 @@ class MessageService:
                 if run_ctx:
                     run_ctx.record_match(
                         message_found.message_id, chat_title, message_found.text,
-                        reason_lookup.get(message_found.message_id, ''),
+                        reason,
                         source=message_found.source, chat_id=message_found.chat_id,
                     )
                 try:
-                    source = dialog_info["source"]
+                    source = source_map.get(message_found.source)
                     await Util.send_message_report(self.client, message_found, self.env.output_dialog_id, source)
                 except Exception as e:
                     await self.client.send_message(
@@ -242,24 +207,38 @@ class MessageService:
                 sent_messages.append(message_found.text)
 
             # Handle events
-            for event in events:
-                event_msg_id = event['message_id']
-                msg = msg_by_id.get(event_msg_id)
-                if not msg:
-                    continue
+            for msg, event in resolved.events:
                 dialog_id = f"{msg.source}:{msg.chat_id}"
-                dialog_info = dialog_map.get((msg.source, msg.message_id))
+                dialog_info = dialog_map.get((msg.source, msg.chat_id, msg.message_id))
                 chat_title = dialog_info["chat_title"] if dialog_info else msg.chat_title
                 try:
                     await self._process_single_event(event, msg, dialog_id, chat_title, run_ctx)
                 except Exception as e:
                     await self.client.send_message(
                         PeerChannel(self.env.error_dialog_id),
-                        f'Error creating event from message {event_msg_id},\n'
+                        f'Error creating event from message {event["message_id"]},\n'
                         f'From chat: {chat_title},\nError: {e}'
                     )
                     if run_ctx:
-                        run_ctx.record_error(f"Event creation error for {event_msg_id}: {e}")
+                        run_ctx.record_error(f"Event creation error for {event['message_id']}: {e}")
+
+            # Persist a per-message decision log for retrospective FP/FN
+            # detection (see ADR 0004). Best-effort: never break the run.
+            try:
+                base_prompt = getattr(self.env, "base_prompt", "") or ""
+                prompt_version = hashlib.sha1(base_prompt.encode("utf-8")).hexdigest()[:8]
+                run_id = run_ctx.start_time.isoformat() if run_ctx else datetime.utcnow().isoformat()
+                rows = build_decision_rows(
+                    ordered_messages, resolved, dedup_keys,
+                    run_id=run_id,
+                    llm_model=getattr(self.env, "llm_model", ""),
+                    prompt_version=prompt_version,
+                )
+                self.db_service.store_decision_log(rows)
+            except Exception as e:
+                logger.warning("Failed to write decision_log: %s", e)
+                if run_ctx:
+                    run_ctx.record_error(f"decision_log write failed: {e}")
 
         # Update last processed message for each chat
         for dialog_id, latest_msg in chat_latest.items():

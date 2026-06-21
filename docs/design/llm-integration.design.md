@@ -126,16 +126,14 @@ The system includes a dedicated integration test suite in `tests/` for verifying
 | **Custom Prompts** | Supports `--prompt` flag to test new prompt versions against the same corpus. |
 | **Context** | Supports `chat_title` in test cases to provide platform context to the LLM. |
 
-### 5.2 Test Case Format (`tests/test_cases.json`)
+### 5.2 Test Case Format (`tests/test_cases.yaml`)
 
-```json
-{
-  "text": "Meeting tomorrow at 5pm",
-  "chat_title": "Project Alpha",
-  "expected": {
-    "found": true
-  }
-}
+```yaml
+- text: |
+    Meeting tomorrow at 5pm
+  chat_title: "Project Alpha"
+  expected:
+    found: true
 ```
 
 ```mermaid

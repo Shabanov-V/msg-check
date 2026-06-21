@@ -67,6 +67,28 @@ class DBService:
                 )
             """)
 
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS decision_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    run_id TEXT NOT NULL,
+                    source TEXT NOT NULL,
+                    chat_id TEXT NOT NULL,
+                    message_id TEXT NOT NULL,
+                    chat_title TEXT,
+                    text TEXT NOT NULL,
+                    timestamp DATETIME,
+                    phase1_verdict TEXT NOT NULL,
+                    feed_action TEXT,
+                    phase1_reason TEXT,
+                    llm_model TEXT,
+                    prompt_version TEXT,
+                    judge_verdict TEXT,
+                    human_label TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(run_id, source, chat_id, message_id)
+                )
+            """)
+
             conn.commit()
 
     def store_dialog_name(self, dialog_id: str, name: str) -> None:
@@ -192,6 +214,78 @@ class DBService:
                 run_ctx.match_rate,
             ))
             conn.commit()
+
+    # -- Decision log (retrospective FP/FN detection; see ADR 0004) --
+
+    _DECISION_COLS = (
+        "run_id", "source", "chat_id", "message_id", "chat_title", "text",
+        "timestamp", "phase1_verdict", "feed_action", "phase1_reason",
+        "llm_model", "prompt_version",
+    )
+
+    def store_decision_log(self, rows: List[dict]) -> None:
+        if not rows:
+            return
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.executemany(
+                f"INSERT OR IGNORE INTO decision_log "
+                f"({', '.join(self._DECISION_COLS)}) "
+                f"VALUES ({', '.join('?' for _ in self._DECISION_COLS)})",
+                [tuple(r.get(c) for c in self._DECISION_COLS) for r in rows],
+            )
+            conn.commit()
+
+    def get_decision_rows(self, run_id: Optional[str] = None) -> List[dict]:
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            if run_id is None:
+                cursor.execute("SELECT * FROM decision_log")
+            else:
+                cursor.execute("SELECT * FROM decision_log WHERE run_id = ?", (run_id,))
+            return [dict(r) for r in cursor.fetchall()]
+
+    def get_unjudged_rows(self) -> List[dict]:
+        """Rows awaiting a judge verdict (judging is done by Claude, not a model)."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM decision_log WHERE judge_verdict IS NULL ORDER BY id")
+            return [dict(r) for r in cursor.fetchall()]
+
+    def set_judge_verdict(self, row_id: int, verdict: str) -> None:
+        if verdict not in ("relevant", "not"):
+            raise ValueError(f"judge_verdict must be 'relevant' or 'not', got {verdict!r}")
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE decision_log SET judge_verdict = ? WHERE id = ?", (verdict, row_id)
+            )
+            conn.commit()
+
+    def set_human_label(self, row_id: int, label: str) -> None:
+        if label not in ("relevant", "not"):
+            raise ValueError(f"human_label must be 'relevant' or 'not', got {label!r}")
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE decision_log SET human_label = ? WHERE id = ?", (label, row_id)
+            )
+            conn.commit()
+
+    def purge_stale_skipped(self, days: int = 90) -> int:
+        """Delete untouched skipped rows older than `days` (PII retention, ADR 0004 §6)."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "DELETE FROM decision_log WHERE phase1_verdict = 'skipped' "
+                "AND judge_verdict IS NULL AND human_label IS NULL "
+                "AND created_at < datetime('now', ?)",
+                (f"-{int(days)} days",),
+            )
+            conn.commit()
+            return cursor.rowcount
 
     def get_recent_runs(self, n: int = 5) -> List[Tuple]:
         with sqlite3.connect(self.db_path) as conn:

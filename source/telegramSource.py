@@ -2,10 +2,12 @@ from typing import Dict, List
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from telethon import TelegramClient
+from telethon import TelegramClient, utils
 from telethon.tl import functions
 from telethon.tl.types import InputPeerChannel, InputPeerChat, InputPeerUser, PeerChannel, PeerChat, PeerUser, Chat
+from telethon.extensions import html as telethon_html
 from tenacity import retry, stop_after_attempt, wait_fixed
+from html import escape
 
 from model.unifiedMessage import UnifiedMessage
 from model.chatInfo import ChatInfo
@@ -64,6 +66,8 @@ class TelegramSource:
             if chat_title and not chat.chat_title:
                 chat.chat_title = chat_title
 
+            sender_name = utils.get_display_name(m.sender) if m.sender else ""
+
             unified.append(UnifiedMessage(
                 source="telegram",
                 chat_id=chat_id_str,
@@ -71,6 +75,7 @@ class TelegramSource:
                 message_id=str(m.id),
                 text=text,
                 timestamp=m.date,
+                sender_name=sender_name,
                 raw=m,
             ))
         return unified
@@ -87,16 +92,24 @@ class TelegramSource:
         tz = ZoneInfo(self.env.timezone)
         dt_str = message.timestamp.astimezone(tz).strftime('%b %d, %H:%M')
 
+        # Escape chat title because it might contain < > &
+        safe_title = escape(message.chat_title)
+
+        # Escape sender name
+        safe_sender = escape(message.sender_name or "Unknown")
+
         if is_link:
             report = (
-                f'📌 <b>{message.chat_title}</b>\n'
+                f'📌 <b>{safe_title}</b>\n'
+                f'👤 <b>From:</b> {safe_sender}\n'
                 f'🔗 <a href="{link}">Open in Telegram</a>\n'
                 f'📅 {dt_str}\n\n'
                 f'💬 {message.text}'
             )
         else:
             report = (
-                f'📌 <b>{message.chat_title}</b>\n'
+                f'📌 <b>{safe_title}</b>\n'
+                f'👤 <b>From:</b> {safe_sender}\n'
                 f'📍 {link}\n'
                 f'📅 {dt_str}\n\n'
                 f'💬 {message.text}'
@@ -139,11 +152,18 @@ class TelegramSource:
 
     @staticmethod
     def _build_message_text(message):
-        text = message.text or ''
+        # Use Telethon's HTML extension to get text with entities as HTML tags
+        # It also automatically escapes special characters outside of tags.
+        text = telethon_html.unparse(message.message, message.entities) if message.entities else (message.message or '')
+
         poll_text = TelegramSource._get_poll_question_text(message)
-        if text and poll_text:
-            return f"{text}\n{poll_text}"
-        return text or poll_text
+        if poll_text:
+            # Poll text is raw, so escape it
+            poll_text = escape(poll_text)
+            if text:
+                return f"{text}\n{poll_text}"
+            return poll_text
+        return text
 
     @staticmethod
     def _get_poll_question_text(message):

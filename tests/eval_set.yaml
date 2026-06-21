@@ -1,0 +1,676 @@
+# Eval set for Phase-1 precision baseline. See docs/adr/0001-measure-precision-before-tuning.md
+# Pre-labeled by Claude; CORRECT the `label` field (relevant | not). `predicted` is frozen for comparison.
+# `borderline: true` = my low-confidence calls — review these first.
+
+- message_id: '248003'
+  chat_title: 'Чат Digital Nomad Spain 🇪🇸 Цифровые кочевники Испании: Community & Reloc'
+  system_reported: false
+  predicted: not
+  borderline: false
+  reason: Travel question, no meetup proposal.
+  label: not
+  text: Всем привет! А никто не летит в Москву из Валенсии, случайно?
+
+- message_id: '8045'
+  chat_title: IT & Business Community in Madrid
+  system_reported: false
+  predicted: not
+  borderline: false
+  reason: Chit-chat fragment.
+  label: not
+  text: Ты прав. Вот теперь похоже
+
+- message_id: '4273'
+  chat_title: IT & business meetup in Madrid
+  system_reported: true
+  predicted: relevant
+  borderline: false
+  reason: Stand-up open mic, Madrid, 29 Apr 18:30, RU comics; invites to spend the evening in good company.
+  label: relevant
+  text: "**\U0001F3A4 Stand Up Открытый микрофон в Мадриде 29 апреля!**\n\nУже сегодня! Большой юмористический\
+    \ концерт. Опытные и начинающие комики проверяют свои новые шутки!\n\nКто выступит?\n[✅ Иван Щербаков](https://www.instagram.com/shch_ivan?igsh=MWVudTRjMTJ0bnN2cg==)\n\
+    ✅ [Таня Новикова ](https://www.instagram.com/tania_novikova_official?igsh=b3g1dTh5Y3ZpdWdo)\n[✅ Алёна\
+    \ Малахаева](https://www.instagram.com/alonamalakhaeva?igsh=MXYwamxqb3Z3YWtrcA==)\n[✅ Ольга Карчевская](https://www.instagram.com/olgakarchevskaya?igsh=dXE3bXkybDNteXYz)\n\
+    \n[✨Ведущий](https://www.instagram.com/antonpikuly?igsh=OGgxa3MzeWgweW0x)[** Антон Пикули**](https://www.instagram.com/antonpikuly?igsh=OGgxa3MzeWgweW0x)\n\
+    \nСбор - 18:15\nНачало - 18:30\n\n18+\n\n\U0001F3AB [Билеты](https://fienta.com/ru/standup-openmic-madrid-290425?utm_source=madrid_gorit)\n\
+    \n\U0001F929 Проведи вечер вторника в отличной компании и с офигенным настроением! \nОбсудим все злоключения\
+    \ вчерашнего дня! И никакой apagón не помешает!\n\n__Если хочешь выступить, пиши в директ ____@shch_ivan____\
+    \ \U0001F609__"
+
+- message_id: '2885'
+  chat_title: События и новости Мадрида
+  system_reported: true
+  predicted: not
+  borderline: false
+  reason: Municipal town fiesta (Alcobendas) news; general public event, not RU-community, no meetup proposal.
+  label: not
+  text: '**Праздник в Alcobendas: Bertín Osborne, шествия и churros!**
+
+
+    Alcobendas готовится к праздникам в честь покровительницы Virgen de la Paz. В 2026 году глашатаем
+    (pregonero) станет знаменитый Bertín Osborne! Гостей ждут музыка, шествия, выставки и угощения.
+
+
+    Старт — 18 января в 18:00 на Plaza del Pueblo. После речи Osborne и сета от Dj Pulpo всех угостят
+    churros с шоколадом! 😋
+
+
+    Ключевые события: 23 января — возложение цветов (Ofrenda Floral) у церкви San Pedro. 24 января в 18:30
+    — главная процессия (Solemne Procesión) по центру города.
+
+
+    Премию "За человеческие ценности" в этом году вручат Asociación Española de Esclerosis Lateral Amiotrófica
+    (adELA). Также до 2 февраля в Centro de Arte Alcobendas открыта выставка об истории праздника. 🖼️
+
+
+    #Alcobendas #FiestasdelaPaz #BertinOsborne
+
+
+    @rusmadrid Новости Мадрида и Испании @russpaincom'
+
+- message_id: '18746'
+  chat_title: ''
+  system_reported: true
+  predicted: relevant
+  borderline: true
+  reason: Guided trip invitation ('кто хочет... присоединяйтесь'); strong join-intent but destination
+    (Aneto) likely non-Madrid.
+  label: relevant
+  text: Кто хочет на ането с гидом 19 мая? Экип Включен
+
+- message_id: '4865'
+  chat_title: Испанский Амиго • Обсуждение
+  system_reported: true
+  predicted: not
+  borderline: false
+  reason: Celebrity lawsuit news.
+  label: not
+  text: "Хулио Иглесиас (Julio Iglesias) [**подал в суд иск о защите чести против вице-премьера Испании](https://www.europapress.es/nacional/noticia-julio-iglesias-demanda-yolanda-diaz-acusarle-abusos-sexuales-esclavitud-contra-trabajadoras-20260224144132.html#google_vignette)**\
+    \ Йоланды Диас (Yolanda Díaz) после того, как та публично обвинила его в сексуальных домогательствах\
+    \ и «рабских условиях» труда для домработниц в его поместьях в Доминиканской Республике и на Багамах.\n\
+    \n▫️13 января Диас репостнула в Bluesky материал о жалобах бывших сотрудниц и добавила собственный\
+    \ комментарий, назвав свидетельства «жуткими» и описав ситуацию как «сексуальные злоупотребления и\
+    \ рабство, основанное на постоянной агрессии». На следующий день она повторила обвинения в телеэфире,\
+    \ акцентировав «крайнюю уязвимость» женщин. \n\nАдвокат певца Хосе Антонио Чоклан (José Antonio Choclán)\
+    \ направил Йоланде Диас требование о публичном опровержении и подал иск с требованием компенсации\
+    \ морального вреда, не исключая уголовного преследования. Прокуратура между тем [прекратила](https://t.me/amigokonon/5422)\
+    \ дело по [жалобе](https://t.me/amigokonon/5367) экс-домработниц, сославшись на отсутствие юрисдикции\
+    \ испанских судов.\n\n@amigokonon #JulioIglesias"
+
+- message_id: '46730'
+  chat_title: ''
+  system_reported: true
+  predicted: not
+  borderline: true
+  reason: '''Party for adults today'' — too vague, no place/time/proposal.'
+  label: not
+  text: Туса для взрослых сегодня
+
+- message_id: '260559'
+  chat_title: 'Чат Digital Nomad Spain 🇪🇸 Цифровые кочевники Испании: Community & Reloc'
+  system_reported: false
+  predicted: not
+  borderline: false
+  reason: Insurance chit-chat.
+  label: not
+  text: Нет ограничений по мед. услугам по сравнению с полным покрытием
+
+- message_id: '252554'
+  chat_title: 'Чат Digital Nomad Spain 🇪🇸 Цифровые кочевники Испании: Community & Reloc'
+  system_reported: false
+  predicted: not
+  borderline: false
+  reason: Chit-chat.
+  label: not
+  text: К сожалению, так не только в Испании
+
+- message_id: '175164'
+  chat_title: ''
+  system_reported: true
+  predicted: not
+  borderline: false
+  reason: Private banter about Gijón (non-Madrid), no open invitation.
+  label: not
+  text: Срочно атакуем Хихон! 😂 Насть, ты присмотрела, есть там нормальные соц активности кроме кафе на
+    берегу и рыбы дешевой?
+
+- message_id: '1468'
+  chat_title: События и новости Мадрида
+  system_reported: true
+  predicted: not
+  borderline: false
+  reason: Medical-research news.
+  label: not
+  text: '**Прорыв в лечении афазии!**
+
+
+    Мадридские больницы Clínico San Carlos, Gregorio Marañón и La Princesa участвуют в исследовании новой
+    терапии для людей с первичной прогрессивной афазией. Экспериментальное лечение с помощью транскраниальной
+    магнитной стимуляции замедляет ухудшение когнитивных и языковых функций. 🧠
+
+
+    Это первое в мире долгосрочное исследование такого рода. В течение шести месяцев 63 пациента проходили
+    лечение. Одна группа получала реальную стимуляцию в сочетании с языковой терапией, а другая — плацебо.
+
+
+    Результаты показали, что у пациентов, получавших настоящую терапию, наблюдалось меньшее снижение метаболизма
+    в областях мозга, связанных с афазией. Их языковые и функциональные способности улучшились по сравнению
+    с группой плацебо. 💬
+
+
+    #afasiaprogresivaprimaria #ClínicoSanCarlos
+
+
+    @rusmadrid Новости Мадрида и Испании @russpaincom'
+
+- message_id: '46542'
+  chat_title: ''
+  system_reported: true
+  predicted: relevant
+  borderline: false
+  reason: Quiz event, Madrid (La Latina), Sun 27 Apr 19:30, RU community.
+  label: relevant
+  text: 'Квиз «СССР vs 90-е» возвращается!
+
+
+    Пластинки против дисков, товарищи против чуваков.
+
+    Давайте выясним, что же лучше: традиции советского быта или дерзкий дух девяностых.
+
+
+    Успейте запрыгнуть в машину времени вместе с Квизмашиной «СССР vs 90-е»-2, чтобы погрузиться в атмосферу
+    двух эпох, вспомнить их культуру, быт и значимые события.
+
+
+    Встречаемся в воскресенье 27 апреля в 19:30 в новом гастробаре Understreet Market.
+
+    Calle Nuncio 19 (метро La Latina).
+
+
+    Регистрация на портале: https://rudagames.com/madrid
+
+
+    Увидимся в прошлом!'
+
+- message_id: '61040'
+  chat_title: МАДРИД/MADRID для русскоговорящих
+  system_reported: true
+  predicted: relevant
+  borderline: false
+  reason: Russian theatre premiere, Madrid Chamberí, 25 Apr 20:00; invites all.
+  label: relevant
+  text: "Дорогие наши зрители!  \nУже очень скоро, 25 апреля ПРЕМЬЕРА ЕДИНСТВЕННАЯ В МАДРИДЕ  премьера\
+    \ спектакля  \"Пушкинские СНЫ\".  \n\n     Подарите себе творческую встречу с русской литературой\
+    \ и театром!\n\nХотим представить вам нашу совместную  работу, где каждому из участников пришлось\
+    \ совершить своё \"восхождение на Эверест\".\n\n     Например, Анне Фрушичевой, умнице и красавице,\
+    \ выучить и спеть Лакримозу из \"Реквиема\" Моцарта, заметьте, не имея музыкального образования!\n\
+    \n      Максиму Чечелю пришлось по-новому освоить 3D пространство сцены (не буду раскрывать секреты!).\n\
+    \n     Также в спектакле вы услышите чудесное исполнение русского романса и игру на калимбе!\n\n    \
+    \ Чема Рамирес – он выучил тонну поэтического пушкинского текста! Поверьте,  русский труднее учить,\
+    \ чем испанский! \nИ всё это в одной постановке...\nЖдём всех на премьере!\nВаша Оксана Гусарова,\
+    \ режиссер-постановщик\n\n       Metrópolis c.e. Escuela de Cine e Interpretación, c/ Escosura 27,\
+    \ Chamberí, Madrid \nст.м. Canal/ Quevedo\n*25 апреля в 20:00* \n\n*Билеты можно приобрести по ссылке:\n\
+    https://profee-events.link/suenosdepushkin\n​​"
+
+- message_id: '18938'
+  chat_title: Испанский Паспорт
+  system_reported: true
+  predicted: not
+  borderline: true
+  reason: '''будет желание присоединяйтесь'' but no concrete event/place.'
+  label: not
+  text: 8-10/05 буду там, будет желание - присоединяйтесь)
+
+- message_id: '1693'
+  chat_title: Настолки в Мадриде
+  system_reported: true
+  predicted: not
+  borderline: false
+  reason: Greeting only, no event.
+  label: not
+  text: Привет всем любителям настоек
+
+- message_id: '27405'
+  chat_title: Испанский Паспорт
+  system_reported: true
+  predicted: not
+  borderline: false
+  reason: Fragment ('at Ministry of Justice').
+  label: not
+  text: В Ministerio de Justicia.
+
+- message_id: '356432'
+  chat_title: Чат "Русские в Испании"🇷🇺🇪🇸
+  system_reported: false
+  predicted: not
+  borderline: false
+  reason: Chit-chat.
+  label: not
+  text: А то мы уже все за вас и за ваших детей переживаем 🤷‍♀️
+
+- message_id: '257872'
+  chat_title: 'Чат Digital Nomad Spain 🇪🇸 Цифровые кочевники Испании: Community & Reloc'
+  system_reported: false
+  predicted: not
+  borderline: false
+  reason: Immigration Q&A.
+  label: not
+  text: 'а как налоговая и имииграционная структуры связаны ?
+
+
+    В моем понимании иммиграционная структура проверяет не форму налогообложения, а факт: работаешь ли
+    ты, есть ли доход, реальная ли деятельность и на основании этого одобряет заявку и выдает карточку
+
+    Иммиграционный орган может аннулировать резидентство из-за отсутствия autonomo ?'
+
+- message_id: '175331'
+  chat_title: ''
+  system_reported: true
+  predicted: relevant
+  borderline: false
+  reason: Running 21km, 'будем рады компании' — invitation seeking company.
+  label: relevant
+  text: Кто-то бежит в следующие выходные? Мы заявились на 21 км, будем рады компании
+
+- message_id: '308'
+  chat_title: Madrid Now
+  system_reported: true
+  predicted: not
+  borderline: false
+  reason: Literary-prize news.
+  label: not
+  text: Мадридский писатель Хуан дель Валь [стал лауреатом литературной премии ](https://efe.com/cultura/2025-10-15/juan-del-val-premio-planeta-con-una-novela-protagonizada-por-una-mujer-de-alta-sociedad/)«Планета»,
+    получив миллион евро за роман __Vera, una historia de amor__. Награждение прошло вчера в Барселоне.
+    Автор написал произведение под женским псевдонимом Эльвира Торрес.
+
+- message_id: '27650'
+  chat_title: Испанский Паспорт
+  system_reported: false
+  predicted: not
+  borderline: false
+  reason: Translator info chit-chat.
+  label: not
+  text: Для Испании обычно у испанского присяжного переводчика, насчет Франции не знаю
+
+- message_id: '10309'
+  chat_title: Чат Мероприятия и встречи 🥳 Друзья и Нетворкинг Валенсия
+  system_reported: true
+  predicted: not
+  borderline: false
+  reason: Chit-chat (Valencia networking).
+  label: not
+  text: Пишууу сюда.. вчера прошла все стадии, наверное)
+
+- message_id: '292235'
+  chat_title: Номады в Мадриде
+  system_reported: false
+  predicted: not
+  borderline: false
+  reason: Programming banter.
+  label: not
+  text: они просто на сишарпе не пробовали
+
+- message_id: '55729'
+  chat_title: МАДРИД/MADRID для русскоговорящих
+  system_reported: false
+  predicted: not
+  borderline: false
+  reason: Web-dev service ad.
+  label: not
+  text: "**Не просто кусок кода, а продающая система**\n\n▪️Разработка и продвижение сайтов:\n Вывод в\
+    \ топ | HTML-рассылки | Размещение в каталогах | Ведение карт | Google Ads\n▪️Разработка и публикация\
+    \ приложений Play Market | App Store \n▪️Ведение социальных сетей под ключ. 4 вида монетизации\n\n\
+    Демо-версия или стратегия продвижения бесплатно\nЗаинтересовало? Пиши"
+
+- message_id: '21268'
+  chat_title: Ковчег
+  system_reported: false
+  predicted: not
+  borderline: false
+  reason: Online chess classes (Moscow time, recurring) — not an offline Madrid meetup.
+  label: not
+  text: "**Открываем набор в шахматный клуб **\n\nУ нас новая активность — шахматный клуб! Приглашаем\
+    \ всех, кто давно хотел научиться играть или повысить свое мастерство в, пожалуй, самой интеллектуальной\
+    \ игре на свете.\n\n**Всего откроем две группы **— одну для начинающих с нулевым опытом или знаниями,\
+    \ другую для тех, кто уже знает как ставить мат в два-три хода и играющих на уровне до 600 пунктов\
+    \ рейтинга. \n\nЗанятия будут проходить один раз в неделю и длиться 75 минут. Начинающая группа будет\
+    \ встречаться по четвергам, продолжающая — по пятницам. Начало занятий — в 19:00 по Москве.\n\n\U0001F469\
+    ‍\U0001F393 **Преподаватель — Ольга Чижа,** детский педагог, тренер-преподаватель по шахматам с 14+\
+    \ лет. Обучает стратегии шахмат в сочетании с освоением эмоционального интеллекта.\n\n**Заявки принимаем\
+    \ до 23:59 16 ноября (по Москве). Всем отправившим анкеты ответим до 2 декабря. **\n\n\U0001F7E6 [**Отправить\
+    \ заявку**](https://docs.google.com/forms/d/e/1FAIpQLSd5uxbRHBIH-OpV6WyUigF0U5BzOYwYsKpxt6fWChprNSsBFA/viewform)\n\
+    \n\U0001F499 [**Подписывайтесь на «Ковчег» — здесь много полезного**](https://t.me/ArkHelps)"
+
+- message_id: '4699'
+  chat_title: Girls Go Out (Madrid Edition) 💃🏻🥂
+  system_reported: true
+  predicted: not
+  borderline: false
+  reason: Opinion/banter about a show.
+  label: not
+  text: ну типа ты идешь на контепорари переработку классики, базово почитав про то куда идешь (наверное)
+    и ждешь классический канон. ощущение, что изначально предвзятые идут, чтоб потом снобски понудеть
+
+- message_id: '298394'
+  chat_title: Испания чат | СНГ
+  system_reported: false
+  predicted: not
+  borderline: false
+  reason: Crypto (Binance) ad.
+  label: not
+  text: "\U0001F449\U0001F449\U0001F449\U0001F449\U0001F449\U0001F449\U0001F449\U0001F929\U0001F929\U0001F929\
+    \n           ⚫️⚫️⚫️⚫️⚫️\n.\n↘️**Куплю Бинанс****\U0001F3F7️****\n.\n****\U0001F52A****С ордерами на\
+    \ р2р\n.\n****\U0001F473‍♂️****Цена 60-150$****✌️****\n.\n****\U0001F641****Связь-****@astridsss1997****\n\
+    ****\U0001F622****\U0001F62D****\U0001F641****\n****\U0001F62D****\U0001F62D****\U0001F641****  ****\U0001F911\
+    ****\U0001F911****\U0001F911****\U0001F911****\n****\U0001F929****\U0001F622****\U0001F615****   \
+    \   \n****\U0001F976****\U0001F976****\U0001F62D****    ****\U0001F929****\U0001F929****\U0001F929\
+    ****\U0001F929****\U0001F929****\U0001F929**\U0001F929\n\U0001F978\U0001F62D\U0001F978"
+
+- message_id: '249420'
+  chat_title: 'Чат Digital Nomad Spain 🇪🇸 Цифровые кочевники Испании: Community & Reloc'
+  system_reported: false
+  predicted: not
+  borderline: false
+  reason: Tax question.
+  label: not
+  text: Подскажите, пожалуйста, а Вы самозанятый или ИП или ГПХ?
+
+- message_id: '6868'
+  chat_title: Кругосветка по Испании 🇪🇸
+  system_reported: true
+  predicted: not
+  borderline: false
+  reason: Valencia lifestyle blog post (non-Madrid), no meetup.
+  label: not
+  text: "\U0001F341 **Как провести осенние выходные в Валенсии?**\n__Осень в Валенсии — идеальное время\
+    \ для неспешных прогулок, вкусной еды и уютных вечеров.__\n\n———\n\U0001F30A **Город и море: прогулки\
+    \ с морским ароматом**\nНачните выходные с прогулки по __Playa de la Malvarrosa__, где шум волн сочетается\
+    \ с осенним спокойствием. Захватите с собой чашку горячего шоколада или традиционной __horchata —\
+    \ это маленькое удовольствие сделает утро особенным. \n__\nОсень — время, когда пляжи почти пусты,\
+    \ а прогулки вдоль моря дарят ощущение умиротворения. Вечером можно зайти в прибрежные кафе и попробовать\
+    \ свежие **mariscos** или лёгкие **tapas**, наслаждаясь видом на море.\n\n———\n\U0001F958 **Гастрономический\
+    \ маршрут: от тапас до паэльи**\nВыходные в València — отличная возможность открыть сезонные вкусы.\
+    \ \nПопробуйте **paella de otoño** с **calabaza**, **setas** и сезонными **verduras** — согревающее\
+    \ и насыщенное блюдо, идеально для прохладного дня. \n\nНе пропустите **fideuà**, локальную «паста-паэлью»\
+    \ с **mariscos**, а также сладости **turrón** и **nougat**, которые появляются на рынках уже в сентябре.\
+    \ \n\nСтарый квартал __Barrio del Carmen__ — отличное место для неспешного обеда или ужина, где рынки\
+    \ и рестораны предлагают лучшее из сезона.\n\n———\n☕️ **Напитки для осени**\nСогреться и насладиться\
+    \ атмосферой города помогут напитки. Осенью особенно приятно пить **café con leche** или **chocolate\
+    \ caliente** утром и **sangría de otoño** вечером. \n\n__Каждый напиток — повод замедлиться, насладиться\
+    \ моментом и почувствовать осень во всей её полноте.\n__\n———\n\U0001F3DE️ **Зеленые уголки и парки**\n\
+    Выходные можно провести и в парках. \nЗнакомый вам **Jardín del Turia** — длиннейший городской парк\
+    \ приглашает на прогулку или поездку на велосипеде среди золотых листьев. \nА **Bioparc** открывает\
+    \ возможность провести несколько часов среди животных в мягком осеннем свете, делая прогулку особенно\
+    \ приятной и расслабляющей.\n\n———\n\U0001F33F **Практические советы**\nЛучшее время для осенних выходных\
+    \ — конец сентября и октября, когда погода комфортная, а рынки полны __calabaza, setas, higos и caquis.\
+    \ \n\n__Начните день с утреннего **café** на террасе, загляните на рынок, прогуляйтесь по старым улочкам\
+    \ и завершите вечер ужином с сезонными блюдами и напитками — __так осень не только в Валенсии раскроется\
+    \ полностью.__\n\n———\n\U0001F341 **Выходные в Валенсии — вкус, аромат и цвет**\nГород замедляется,\
+    \ и вы можете замедлиться вместе с ним: пробовать местное и насладиться мелочами.\n\n———\n\U0001F447\
+    \U0001F3FD **А какие у вас способы по-настоящему прочувствовать атмосферу осени?**\n\n__València знает:\
+    \ осенние выходные — лучший повод смотреть вокруг, наслаждаться вкусами и чувствовать город всей душой\n\
+    \n__[Кругосветка по Испании](https://t.me/spainvlc) \U0001F1EA\U0001F1F8 — русский борщ, но с хамоном"
+
+- message_id: '180996'
+  chat_title: ''
+  system_reported: true
+  predicted: not
+  borderline: true
+  reason: '''где собираемся?'' reply, no concrete event.'
+  label: not
+  text: если чо пацаны где собираемся чтоб поближе к эпицентру?
+
+- message_id: '239832'
+  chat_title: 'Чат Digital Nomad Spain 🇪🇸 Цифровые кочевники Испании: Community & Reloc'
+  system_reported: true
+  predicted: not
+  borderline: false
+  reason: Looking for a developer (job/service).
+  label: not
+  text: Нам нужен разработчик проекта, чтобы он пояснил за
+
+- message_id: '260028'
+  chat_title: 'Чат Digital Nomad Spain 🇪🇸 Цифровые кочевники Испании: Community & Reloc'
+  system_reported: false
+  predicted: not
+  borderline: false
+  reason: Chit-chat.
+  label: not
+  text: не надо ничего говорить про Испанию немецким пограничникам вообще
+
+- message_id: '4795'
+  chat_title: Футбол и Падел Мадрид - немного играем и пьём!
+  system_reported: true
+  predicted: not
+  borderline: false
+  reason: Sharing Nike expo + free-ticket promo; no meetup intent.
+  label: not
+  text: 'Может кому будет интересно тоже, щас в Мадриде проходит выставка Nike
+
+
+    https://feverup.com/m/437433?utm_source=direct&cp_landing_source=nikedisenoenmovimiento
+
+
+    Мне в их приложении прислали промокод на бесплатные билеты - NIKE100
+
+
+    Написано 250 бесплатных билетов доступно, я вот себе взял, вроде до 4-ех за раз можно взять, промокод
+    там можно будет ввести в окне способа оплаты внизу
+
+
+    Без скидки билет 15 евро стоит, так что предложение выгодное)'
+
+- message_id: '61'
+  chat_title: Disco Golf Madrid Team
+  system_reported: true
+  predicted: not
+  borderline: true
+  reason: '''thinking of going to try disc golf with daughter'' — casual, no explicit invite/time.'
+  label: not
+  text: 'Привет, всем!
+
+    У меня мысли завтра поехать с дочкой(8 лет)попробовать покидать.'
+
+- message_id: '38470'
+  chat_title: Испанский Паспорт
+  system_reported: false
+  predicted: not
+  borderline: false
+  reason: Chit-chat.
+  label: not
+  text: Простите, если не точно выразилась. Сдавала, где была cita в разные годы.
+
+- message_id: '73231'
+  chat_title: ',, ВСЁ НИПОЧЁМ". МАДРИД'
+  system_reported: false
+  predicted: not
+  borderline: false
+  reason: Selling furniture (ad).
+  label: not
+  text: "Mesa con hueco dentro y una cara es pizarra y otra mesa. con 2 sillas. Está todo muy usado\n\
+    +34647821937.\nWhatsApp \nEscribir \n A la primera persona que venga"
+
+- message_id: '9713'
+  chat_title: Чат Мероприятия и встречи 🥳 Друзья и Нетворкинг Валенсия
+  system_reported: true
+  predicted: not
+  borderline: false
+  reason: Chit-chat (Valencia).
+  label: not
+  text: Включают, да, я приеду румяным пирожочком похоже 🙈
+
+- message_id: '9603'
+  chat_title: Чат Мероприятия и встречи 🥳 Друзья и Нетворкинг Валенсия
+  system_reported: true
+  predicted: not
+  borderline: false
+  reason: Chit-chat about waffles/book (Valencia).
+  label: not
+  text: "А можно просто на вафельки прийти?\U0001F648 \nЯ книгу так и не нашла\U0001F642\nНу у меня ещё\
+    \ своя есть, потихоньку читаю её \U0001F603\nТак что там с вафельками решили?"
+
+- message_id: '60840'
+  chat_title: ''
+  system_reported: true
+  predicted: not
+  borderline: true
+  reason: Genuine 'соберём компанию' invite but Castelldefels (Barcelona area), non-Madrid.
+  label: not
+  text: "Мы сегодня здесь собирались **19ª Ruta De la Tapa de Castelldefels**. Если кто-то хочет прикольную\
+    \ компанию собрать, о чем-нибудь поговорить - пишите. \nСегодня было хорошо."
+
+- message_id: '47265'
+  chat_title: ''
+  system_reported: true
+  predicted: relevant
+  borderline: true
+  reason: Illusion show, Madrid, 10 May, RU artist; concrete cultural event but promotional/ticketed,
+    no explicit companionship.
+  label: relevant
+  text: "✨**Павел Бах в первый раз приезжает в Мадрид в рамках своего европейского тура с новым иллюзионным\
+    \ шоу! \n**\n**Что это будет:** концерт, где магия и комедия переплетаются в современное переосмыслении\
+    \ искусства иллюзии \n\n**Главная фишка:** сделать фокусы впечатляющими, релевантными и прикольными\
+    \ для людей нашего времени \n\n**Какой вайб шоу:** если бы Дали, Дэвид Линч и Хантер Томпсон тусовались\
+    \ в баре и позвали туда мага \n\n**Кто показывает:** Павел Бах - один из самых титулованных иллюзионистов\
+    \ России, чемпион РФ по иллюзионному искусству, участник телепроектов в РФ и США, резидент Comedy\
+    \ Club Petersburg \n\n**Авторский стиль:** В обёртке юмора, иронии и деконструкции жанра, устроить\
+    \ майндфак - показать в реальной жизни события и эффекты которых не может быть. Как галлюцинации наяву.\
+    \ \n\n**Когда: 10 мая\n**\U0001F4CD**Где: Madrid Comedy Lab, C. del Amor de Dios, 13, Centro, 28014\n\
+    Двери: 17:30\n**\n➡️ [Билеты](https://potalonu.com/events/03443ebd-4bed-44dd-aabc-fc1c5d6c3f11)"
+
+- message_id: '1424'
+  chat_title: Новости и события Мадрида
+  system_reported: true
+  predicted: not
+  borderline: false
+  reason: Economic news.
+  label: not
+  text: '**Мадрид бьет рекорды по созданию рабочих мест!**
+
+
+    Сообщество Мадрид стало лидером по созданию рабочих мест в Испании, добавив 95 050 новых позиций за
+    год — это 260 новых сотрудников ежедневно! Общее число работников, зарегистрированных в Seguridad
+    Social, достигло исторического максимума для июля: 3 776 154 человека. 📈
+
+
+    Уровень безработицы в регионе упал на 4,4% за год, достигнув самой низкой отметки с 2008 года — 275
+    876 человек. Снижение затронуло все группы: мужчин, женщин, молодежь и все ключевые секторы экономики,
+    от строительства до услуг.
+
+
+    Число самозанятых (autónomos) также выросло на 5 158 человек, достигнув отметки в 434 807. Это говорит
+    о росте предпринимательской активности в регионе. 💪
+
+
+    #ComunidadDeMadrid #SeguridadSocial #autónomos
+
+
+    @rusmadrid Новости Мадрида и Испании @russpaincom'
+
+- message_id: '344897'
+  chat_title: Номады в Мадриде
+  system_reported: false
+  predicted: not
+  borderline: false
+  reason: Chit-chat.
+  label: not
+  text: Видимо, пицца огромная, сантиметров 12
+
+- message_id: '323454'
+  chat_title: Номады в Мадриде
+  system_reported: false
+  predicted: not
+  borderline: false
+  reason: Chit-chat.
+  label: not
+  text: охуела от твоей мясной сигары
+
+- message_id: '111'
+  chat_title: Квиз, плиз! в Мадриде
+  system_reported: true
+  predicted: relevant
+  borderline: false
+  reason: Karaoke Quiz, Madrid Irish Rover Pub, 24 Sep 19:30, 'Приходи'.
+  label: relevant
+  text: "«Shine bright like a diamond»! \U0001F48E \n24 сентября, состоится первая игра [КАРАОКЕ] Квиз,\
+    \ плиз! - это вечеринка, где музыка, игра и атмосфера смешиваются в идеальный микс!\n\nНа нашей музыкальной\
+    \ игре прозвучат хиты, которые невозможно не знать.\nНо «Квиз, плиз!» не был бы собой, если бы не\
+    \ придумал кучу интересных механик, чтобы бросить вызов вам - знатокам музыки.\n\nПриходи, чтобы почувствовать\
+    \ дух Квиза, где никто не скажет: «А вот здесь ты не попал в ноту». Только драйв  и любимые треки.\n\
+    \nТы поёшь за столиком, квизмены подпевают, диджей качает - получается оркестр, где каждый на своей\
+    \ волне!\n\nКогда и где?\n • 24 сентября\n • 19:30\n • The Irish Rover Pub\n\nРегистрация [по ссылке](https://mad.quizplease.ru/game-page?id=111642)[!](https://mad.quizplease.ru/game-page?id=111642)\
+    \ \U0001F517 \n\nP.S Сделаем баланс между любимой попсой и иностранной музыкой \U0001F609"
+
+- message_id: '317316'
+  chat_title: Номады в Мадриде
+  system_reported: false
+  predicted: not
+  borderline: false
+  reason: Chit-chat.
+  label: not
+  text: Вроде норм (по крайней мере в санитас)
+
+- message_id: '4854'
+  chat_title: IT & Business Community in Madrid
+  system_reported: true
+  predicted: not
+  borderline: false
+  reason: Fragment chit-chat.
+  label: not
+  text: 'Точнее, больше
+
+    Но сидячих 5-6'
+
+- message_id: '46250'
+  chat_title: ''
+  system_reported: true
+  predicted: not
+  borderline: false
+  reason: Luxury-brand pop-up promo, no meetup.
+  label: not
+  text: "**\U0001F37E Moët & Chandon x Pharrell Williams: эксклюзивный pop-up в сердце Мадрида\n\n**__Искренне\
+    \ верю, что среди моих подписчиков есть обеспеченные люди, выбирающие роскошный образ жизни. В общем,\
+    \ сейчас что-то на богатом, дорогие мажоры, жены айтишников и не только \U0001F911 __\n\n\U0001F942\
+    \ До 20 апреля в стильной Галерее Каналехас — pop-up бутика Moët & Chandon, созданного в сотрудничестве\
+    \ с Фарреллом Уильямсом. Это пространство посвящено искусству празднования и предлагает посетителям:\n\
+    Здесь всё про **искусство праздновать**:\n— коллекционное шампанское Brut Impérial и Rosé в бутылках\
+    \ с перламутровым дизайном (от 48 до 700 €),\n— персонализация на месте: добавь ленты, инициалы и\
+    \ сделай подарок с шиком,\n— фотозона, в которой ты точно будешь сиять как Moët под софитами,\n— и,\
+    \ внимание, **эксклюзивный сет** в Café de Galería Canalejas — бокал Moët Brut + специальные солёные\
+    \ макаруны. Это просто гастрооргазм. __Ну, так обещают организаторы, по крайней мере__\n\n\U0001F4CD\
+    \ **Адрес**: Plaza de Canalejas, 1, Мадрид.\n\n\U0001F552 **Время работы**: Пн–Сб: 10:30–20:30, Вс:\
+    \ 12:00–20:00.\n\n\U0001F697 **Парковка**: 2 часа бесплатно в Centro Canalejas, но только для машин\
+    \ класса премиум и люкс шутка \n\nℹ️ Предварительная регистрация не требуется.\n\nНе упустите шанс\
+    \ окунуться в атмосферу праздника и роскоши! Подробности на официальном сайте.\n\n**__➡️__****__ Все\
+    \ самое интересное в Мадриде на __любой карман \U0001F609****__@madrid_gorit__**"
+
+- message_id: '48046'
+  chat_title: ''
+  system_reported: false
+  predicted: not
+  borderline: false
+  reason: Selling a Kindle (ad).
+  label: not
+  text: Здравствуйте) Я продаю киндл. Вдруг вам интересно. Просто можно будет попробовать закачать книги
+    на русском. Какие захотите)) Киндл в отличном состоянии, прилагается чехол и тряпочка для экрана)
+    Я его продаю за 100 евро. Памяти там ооочень много! Так что книг поместится целая библиотека)) Если
+    что, пишите в личку)) Я в районе Аравака живу))
+
+- message_id: '294269'
+  chat_title: Номады в Мадриде
+  system_reported: false
+  predicted: not
+  borderline: false
+  reason: Chit-chat.
+  label: not
+  text: щас иду мимо террас, где у девушек сумочки висят просто на спинке стула
+
+- message_id: '267050'
+  chat_title: Номады в Мадриде
+  system_reported: true
+  predicted: not
+  borderline: false
+  reason: Recycling chit-chat.
+  label: not
+  text: 'нет, это no reciclable: то, что не подлежит переработке'
+

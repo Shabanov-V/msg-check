@@ -2,6 +2,7 @@ from typing import List, Optional
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
+from html import escape
 import requests
 from tenacity import retry, stop_after_attempt, wait_fixed
 
@@ -91,6 +92,9 @@ class WhatsAppSource:
             if msg_time < one_day_ago:
                 continue
 
+            # Extract sender name from WAHA payload
+            sender_name = msg.get('sender', {}).get('pushName') or ""
+
             unified.append(UnifiedMessage(
                 source="whatsapp",
                 chat_id=chat.chat_id,
@@ -98,6 +102,7 @@ class WhatsAppSource:
                 message_id=str(msg_id),
                 text=body,
                 timestamp=msg_time,
+                sender_name=sender_name,
                 raw=msg,
             ))
 
@@ -108,10 +113,15 @@ class WhatsAppSource:
         tz = ZoneInfo(self.timezone_name)
         dt_str = message.timestamp.astimezone(tz).strftime('%b %d, %H:%M')
 
+        safe_title = escape(message.chat_title)
+        safe_text = escape(message.text)
+        safe_sender = escape(message.sender_name or "Unknown")
+
         report = (
-            f'📌 WA: {message.chat_title}\n'
+            f'📌 <b>{safe_title}</b>\n'
+            f'👤 <b>From:</b> {safe_sender}\n'
             f'📅 {dt_str}\n\n'
-            f'💬 {message.text}'
+            f'💬 {safe_text}'
         )
         return report
 

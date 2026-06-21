@@ -104,17 +104,14 @@ python tests/integration_tester.py
 ```
 
 ### Adding Test Cases
-Add new test cases to `tests/test_cases.json` in the following format:
-```json
-[
-  {
-    "text": "Your message text here",
-    "chat_title": "Optional Group Name",
-    "expected": {
-      "found": true
-    }
-  }
-]
+Add new test cases to `tests/test_cases.yaml` in the following format:
+```yaml
+- text: |
+    Your message text here
+    spanning multiple lines
+  chat_title: "Optional Group Name"
+  expected:
+    found: true
 ```
 
 ### Testing Custom Prompts
@@ -123,8 +120,23 @@ To test a specific prompt file:
 python tests/integration_tester.py --prompt path/to/your.prompt
 ```
 
+### Using Raw Fixtures (Recommended for Multiline)
+For the most convenient way to add test cases with large multiline messages, use the **Fixtures** system:
+1. Create a `.txt` file in `tests/fixtures/` (e.g., `tests/fixtures/new_listing.txt`).
+2. Paste the message raw into the file — no indentation or quotes needed.
+3. (Optional) Add a YAML header (frontmatter) for metadata:
+   ```yaml
+   ---
+   chat_title: My Group Name
+   expected:
+     found: true
+   ---
+   Message content starts here...
+   ```
+   If no header is provided, the filename is used as the title and `expected.found` defaults to `true`.
+
 ### Options
-- `--cases`: Path to the test cases JSON file (default: `tests/test_cases.json`).
+- `--cases`: Path to the test cases YAML file (default: `tests/test_cases.yaml`). In addition to this file, any `.txt` files in a `fixtures/` directory relative to it will also be loaded.
 - `--prompt`: Path to an optional custom prompt file to use instead of the one defined in `.env`.
 
 ## Project Structure

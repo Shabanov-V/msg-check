@@ -1,4 +1,6 @@
 import logging
+import re
+from html import escape
 from typing import List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -45,7 +47,7 @@ class ReportGenerator:
 
     def _section_summary(self, ctx: "RunContext") -> str:
         return (
-            f"Execution completed.\n"
+            f"<b>Execution completed.</b>\n"
             f"Messages processed: {ctx.total_fetched},\n"
             f"Messages found: {ctx.total_matched},\n"
             f"Events found: {ctx.total_events}"
@@ -53,7 +55,7 @@ class ReportGenerator:
 
     def _section_timing(self, ctx: "RunContext") -> str:
         return (
-            f"\n\u23f1\ufe0f Duration: {ctx.duration_sec:.1f}s "
+            f"\n\u23f1\ufe0f <b>Duration:</b> {ctx.duration_sec:.1f}s "
             f"(Phase 1: {ctx.llm_phase1_duration_sec:.1f}s, "
             f"Phase 2: {ctx.llm_phase2_duration_sec:.1f}s)"
         )
@@ -62,11 +64,12 @@ class ReportGenerator:
         stats = ctx.get_chat_stats()
         if not stats:
             return ""
-        lines = ["\n\ud83d\udcca Per-Chat Breakdown:"]
+        lines = ["\n\ud83d\udcca <b>Per-Chat Breakdown:</b>"]
         for c in stats:
             warning = " \u26a0\ufe0f" if c["rate"] > 20 else ""
+            safe_title = escape(c['chat_title'])
             lines.append(
-                f"\u2022 {c['chat_title']} ({c['source']}): "
+                f"\u2022 {safe_title} ({c['source']}): "
                 f"{c['fetched']} fetched, {c['matched']} matched "
                 f"({c['rate']:.1f}%){warning}"
             )
@@ -76,26 +79,28 @@ class ReportGenerator:
         count = len(ctx.dedup_skips)
         if count == 0:
             return ""
-        return f"\n\ud83d\udd04 Dedup: {count} messages skipped (already reported)"
+        return f"\n\ud83d\udd04 <b>Dedup:</b> {count} messages skipped (already reported)"
 
     def _section_events(self, ctx: "RunContext") -> str:
         if not ctx.event_results:
             return ""
-        lines = ["\n\ud83d\udcc5 Events:"]
+        lines = ["\n\ud83d\udcc5 <b>Events:</b>"]
         for e in ctx.event_results:
+            safe_title = escape(e['title'])
             if e["is_duplicate"]:
+                safe_matched = escape(e['matched_against'])
                 lines.append(
-                    f"\u2022 \"{e['title']}\" \u2192 Duplicate "
-                    f"(\u2194 \"{e['matched_against']}\", similarity: {e['similarity_score']:.2f})"
+                    f"\u2022 \"{safe_title}\" \u2192 Duplicate "
+                    f"(\u2194 \"{safe_matched}\", similarity: {e['similarity_score']:.2f})"
                 )
             else:
-                lines.append(f"\u2022 \"{e['title']}\" \u2192 New")
+                lines.append(f"\u2022 \"{safe_title}\" \u2192 New")
         return "\n".join(lines)
 
     def _section_hallucination(self, ctx: "RunContext") -> str:
         if ctx.hallucination_recoveries == 0 and not ctx.still_missing_ids:
             return ""
-        parts = [f"\n\ud83d\udd27 Hallucination Recovery: {ctx.hallucination_recoveries} recovered"]
+        parts = [f"\n\ud83d\udd27 <b>Hallucination Recovery:</b> {ctx.hallucination_recoveries} recovered"]
         if ctx.still_missing_ids:
             parts[0] += f", {len(ctx.still_missing_ids)} still missing"
         return parts[0]
@@ -103,26 +108,37 @@ class ReportGenerator:
     def _section_borderline(self, ctx: "RunContext") -> str:
         if not ctx.borderline_messages:
             return ""
-        lines = [f"\n\u26a0\ufe0f Borderline Messages ({len(ctx.borderline_messages)}):"]
+        lines = [f"\n\u26a0\ufe0f <b>Borderline Messages ({len(ctx.borderline_messages)}):</b>"]
         for b in ctx.borderline_messages[:10]:  # Cap at 10 for readability
+            safe_chat = escape(b['chat_title'])
+            # b['text_preview'] is already a slice, but we should strip HTML tags from it first if it contains them
+            # However, text_preview is build from message.text which now has HTML for Telegram.
+            # Let's strip tags for preview.
+            clean_text = re.sub(r'<[^>]+>', '', b['text_preview'])
+            safe_text = escape(clean_text)
+            safe_reason = escape(b['exclusion_reason'])
             lines.append(
-                f"\u2022 [{b['chat_title']}] \"{b['text_preview']}...\" \u2014 {b['exclusion_reason']}"
+                f"\u2022 [{safe_chat}] \"{safe_text}...\" \u2014 {safe_reason}"
             )
         return "\n".join(lines)
 
     def _section_errors(self, ctx: "RunContext") -> str:
         if not ctx.errors:
             return ""
-        return f"\n\u274c Errors: {len(ctx.errors)} non-fatal errors"
+        return f"\n\u274c <b>Errors:</b> {len(ctx.errors)} non-fatal errors"
 
     def _section_matched_with_reasons(self, ctx: "RunContext") -> str:
         if not ctx.matched_messages:
             return ""
-        lines = ["\n\ud83c\udff7\ufe0f Matched Messages with Reasons:"]
+        lines = ["\n\ud83c\udff7\ufe0f <b>Matched Messages with Reasons:</b>"]
         for m in ctx.matched_messages:
+            safe_chat = escape(m['chat_title'])
+            clean_text = re.sub(r'<[^>]+>', '', m['text_preview'])
+            safe_text = escape(clean_text)
             reason = m.get("reason") or "N/A"
+            safe_reason = escape(reason)
             lines.append(
-                f"\u2022 [{m['chat_title']}] \"{m['text_preview']}...\" \u2014 Reason: {reason}"
+                f"\u2022 [{safe_chat}] \"{safe_text}...\" \u2014 Reason: {safe_reason}"
             )
         return "\n".join(lines)
 
@@ -141,7 +157,7 @@ class ReportGenerator:
         this_rate = ctx.match_rate * 100
 
         return (
-            f"\n\ud83d\udcc8 Trend (last {len(recent)} runs):\n"
+            f"\n\ud83d\udcc8 <b>Trend (last {len(recent)} runs):</b>\n"
             f"\u2022 Avg match rate: {avg_match_rate:.1f}% (this run: {this_rate:.1f}%)\n"
             f"\u2022 Avg duration: {avg_duration:.1f}s (this run: {ctx.duration_sec:.1f}s)\n"
             f"\u2022 Avg hallucination recoveries: {avg_halluc:.1f} "
@@ -153,7 +169,7 @@ class ReportGenerator:
         p2 = ctx.llm_phase2_tokens
         if p1 is None and p2 is None:
             return ""
-        parts = ["\n\ud83d\udd22 LLM Tokens:"]
+        parts = ["\n\ud83d\udd22 <b>LLM Tokens:</b>"]
         if p1 is not None:
             parts.append(f" Phase 1: ~{p1}")
         if p2 is not None:

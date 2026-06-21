@@ -1,3 +1,5 @@
+import re
+from html import escape
 from zoneinfo import ZoneInfo
 from telethon import TelegramClient
 from telethon.tl.types import PeerChannel
@@ -19,21 +21,22 @@ class Util:
 
         report_text = source.get_message_reference(message)
 
-        if message.source == "telegram":
-            await client.send_message(
-                PeerChannel(output_dialog_id),
-                report_text,
-                parse_mode='html',
-                link_preview=False,
-                schedule=timedelta(seconds=60 + Util._offset * 60),
-            )
-        else:
-            await client.send_message(
-                PeerChannel(output_dialog_id),
-                report_text,
-                link_preview=False,
-                schedule=timedelta(seconds=60 + Util._offset * 60),
-            )
+        # For WhatsApp or any other source, we should ensure the report is valid HTML
+        # if we are going to send it with parse_mode='html'.
+        # Since TelegramSource already returns HTML, we only need to worry about others.
+        if message.source != "telegram":
+            # Simple approach: escape everything from non-telegram sources
+            # But wait, source.get_message_reference(message) might have some structure.
+            # It's better to escape the components inside the source's get_message_reference.
+            pass
+
+        await client.send_message(
+            PeerChannel(output_dialog_id),
+            report_text,
+            parse_mode='html',
+            link_preview=False,
+            schedule=timedelta(seconds=60 + Util._offset * 60),
+        )
 
         Util._offset += 1
 
@@ -44,6 +47,7 @@ class Util:
             'chat_title': message.chat_title,
             'chat_id': message.chat_id,
             'text': message.text,
+            'sender_name': message.sender_name,
             'message_id': message.message_id,
             'datetime': message.timestamp.astimezone(ZoneInfo(timezone_name)).isoformat(),
         }
@@ -53,13 +57,20 @@ class Util:
         """
         Returns True if str1 matches any string in str_list,
         comparing only letters and ignoring newlines and case.
+        Strips HTML tags first.
         """
         if not str1:
             return False
-        str1_clean = ''.join(filter(str.isalpha, str1.replace('\n', ''))).lower()
+
+        def clean(s):
+            # Strip HTML tags
+            s = re.sub(r'<[^>]+>', '', s)
+            # Filter only alpha
+            return ''.join(filter(str.isalpha, s.replace('\n', ''))).lower()
+
+        str1_clean = clean(str1)
         for s in str_list:
-            s_clean = ''.join(filter(str.isalpha, s.replace('\n', ''))).lower()
-            if str1_clean == s_clean:
+            if clean(s) == str1_clean:
                 return True
         return False
 

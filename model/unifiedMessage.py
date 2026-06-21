@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import Any, Optional
 
 
 @dataclass
@@ -11,4 +11,5 @@ class UnifiedMessage:
     message_id: str       # Unique message identifier (string)
     text: str             # Message body text
     timestamp: datetime   # Message datetime (UTC)
+    sender_name: Optional[str] = None  # Sender display name
     raw: Any = None       # Original platform-specific object

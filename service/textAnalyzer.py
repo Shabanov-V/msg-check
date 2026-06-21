@@ -1,12 +1,32 @@
 from openai import OpenAI
 import json
 import logging
+import re
 import time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from tenacity import retry, stop_after_attempt, wait_fixed, before_sleep_log
 
 logger = logging.getLogger(__name__)
+
+
+def validate_completion(completion):
+    """Extract usable content from an LLM completion or raise ValueError.
+
+    Rejects truncated responses (finish_reason == 'length'): the JSON is cut
+    mid-string and would crash json.loads, so callers retry instead.
+    """
+    choice = completion.choices[0]
+    if getattr(choice, "finish_reason", None) == "length":
+        raise ValueError("Response truncated (finish_reason=length)")
+    content = choice.message.content
+    if not content:
+        raise ValueError("Empty response from LLM")
+    match = re.search(r'```(?:json)?\s*(.*?)\s*```', content, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    return content.strip()
+
 
 class TextAnalyzer:
     PHASE1_SCHEMA = {
@@ -79,11 +99,13 @@ class TextAnalyzer:
         }
     }
 
-    def __init__(self, key, base_prompt, phase2_prompt, model, timezone_name="Europe/Madrid"):
-        self.client = OpenAI(
+    def __init__(self, key, base_prompt, phase2_prompt, model, timezone_name="Europe/Madrid",
+                 client=None, max_tokens=16384):
+        self.client = client or OpenAI(
             base_url="https://openrouter.ai/api/v1",
             api_key=key,
         )
+        self.max_tokens = max_tokens
         self.model = model
         self.base_prompt = base_prompt
         self.phase2_prompt = phase2_prompt
@@ -103,28 +125,22 @@ class TextAnalyzer:
                 "json_schema": schema
             },
             temperature=0,
+            max_tokens=self.max_tokens,
         )
-        return completion
+        cleaned = validate_completion(completion)
+        parsed_json = json.loads(cleaned)
+        return completion, parsed_json
 
     def __call_llm(self, prompt, text, schema):
-        response = None
+        response, parsed = None, None
         try:
-            response = self.__generate_content_with_retry(prompt, text, schema)
+            response, parsed = self.__generate_content_with_retry(prompt, text, schema)
         except Exception as e:
             logger.error("Failed to get response: %s", e)
             
         if response is None:
-            raise Exception("Failed to get response")
-        return response
-
-    def __clean_json_content(self, content):
-        if content.startswith("```json"):
-            content = content[7:]
-        elif content.startswith("```"):
-            content = content[3:]
-        if content.endswith("```"):
-            content = content[:-3]
-        return content.strip()
+            raise Exception("Failed to get valid JSON response from LLM")
+        return response, parsed
 
     def _parse_datetime_lenient(self, dt_string):
         """Parse datetime string with fallback patterns."""
@@ -182,18 +198,15 @@ class TextAnalyzer:
 
         # Phase 1: Classification
         t0 = time.time()
-        response = self.__call_llm(self.base_prompt, text, self.PHASE1_SCHEMA)
+        try:
+            response, phase1 = self.__call_llm(self.base_prompt, text, self.PHASE1_SCHEMA)
+        except Exception as e:
+            logger.error("Failed to call LLM or parse Phase 1 response: %s", e)
+            return None
+            
         phase1_duration = time.time() - t0
         phase1_tokens = self._extract_tokens(response)
         
-        try:
-            content = response.choices[0].message.content
-            content = self.__clean_json_content(content)
-            phase1 = json.loads(content)
-        except (AttributeError, IndexError, json.JSONDecodeError) as e:
-            logger.error("Failed to parse Phase 1 response: %s", e)
-            return None
-
         if not phase1.get('found'):
             return None 
         
@@ -230,23 +243,20 @@ class TextAnalyzer:
 
         phase2_input = json.dumps(phase2_messages, ensure_ascii=False)
         t1 = time.time()
-        response2 = self.__call_llm(self.phase2_prompt, phase2_input, self.PHASE2_SCHEMA)
-        phase2_duration = time.time() - t1
-        phase2_tokens = self._extract_tokens(response2)
-
         try:
-            content2 = response2.choices[0].message.content
-            content2 = self.__clean_json_content(content2)
-            phase2 = json.loads(content2)
-        except (AttributeError, IndexError, json.JSONDecodeError) as e:
-            logger.error("Failed to parse Phase 2 response: %s", e)
+            response2, phase2 = self.__call_llm(self.phase2_prompt, phase2_input, self.PHASE2_SCHEMA)
+        except Exception as e:
+            logger.error("Failed to call LLM or parse Phase 2 response: %s", e)
             return {"results": results, "Events": [], "borderline": borderline,
                     "_meta": {
                         "phase1_duration_sec": phase1_duration,
-                        "phase2_duration_sec": phase2_duration,
+                        "phase2_duration_sec": time.time() - t1,
                         "phase1_tokens": phase1_tokens,
-                        "phase2_tokens": phase2_tokens,
+                        "phase2_tokens": None,
                     }}
+                    
+        phase2_duration = time.time() - t1
+        phase2_tokens = self._extract_tokens(response2)
 
         events = phase2.get('Events', [])
         events = self._post_process_events(events)

@@ -1,10 +1,7 @@
 import logging
+from service.logging_config import configure_logging
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S',
-)
+configure_logging()
 logger = logging.getLogger(__name__)
 
 from telethon import TelegramClient
@@ -92,7 +89,7 @@ async def main():
         run_ctx, db_service if env.log_verbosity == 'verbose' else None
     )
     for msg in report_messages:
-        await client.send_message(PeerChannel(env.error_dialog_id), msg)
+        await client.send_message(PeerChannel(env.error_dialog_id), msg, parse_mode='html')
 
 with client:
     client.loop.run_until_complete(main())
