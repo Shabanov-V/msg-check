@@ -44,6 +44,7 @@ class MockDBService:
         start_lower = start_time - timedelta(minutes=window_minutes)
         start_upper = start_time + timedelta(minutes=window_minutes)
         with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT * FROM calendar_events
@@ -75,7 +76,7 @@ def test_deduplication():
     
     is_duplicate = False
     for candidate in candidates:
-        candidate_title = candidate[4]
+        candidate_title = candidate["title"]
         similarity = difflib.SequenceMatcher(None, new_event_title, candidate_title).ratio()
         print(f"Similarity: {similarity:.2f}")
         if similarity > 0.6 or new_event_title in candidate_title or candidate_title in new_event_title:
@@ -104,7 +105,7 @@ def test_deduplication():
     
     is_duplicate = False
     for candidate in candidates:
-        candidate_title = candidate[4]
+        candidate_title = candidate["title"]
         # Skip the "Team Dinner" one for this specific check to focus on "Dinner"
         if candidate_title != "Dinner": continue
         

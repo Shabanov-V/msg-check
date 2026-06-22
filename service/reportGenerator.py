@@ -150,9 +150,9 @@ class ReportGenerator:
         if not recent:
             return ""
 
-        avg_match_rate = sum(r[15] or 0 for r in recent) / len(recent) * 100
-        avg_duration = sum(r[2] or 0 for r in recent) / len(recent)
-        avg_halluc = sum(r[9] or 0 for r in recent) / len(recent)
+        avg_match_rate = sum(r["match_rate"] or 0 for r in recent) / len(recent) * 100
+        avg_duration = sum(r["duration_sec"] or 0 for r in recent) / len(recent)
+        avg_halluc = sum(r["hallucination_recoveries"] or 0 for r in recent) / len(recent)
 
         this_rate = ctx.match_rate * 100
 

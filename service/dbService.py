@@ -147,15 +147,17 @@ class DBService:
         self,
         start_time: datetime,
         window_minutes: int = 120
-    ) -> List[Tuple]:
+    ) -> List[sqlite3.Row]:
         """
         Retrieve all calendar events where the event's start_time is within
-        +/- window_minutes of the given start_time.
+        +/- window_minutes of the given start_time. Rows are accessible by
+        column name (e.g. row["title"]); see calendar_events schema.
         """
         start_lower = start_time - timedelta(minutes=window_minutes)
         start_upper = start_time + timedelta(minutes=window_minutes)
 
         with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT * FROM calendar_events
@@ -287,8 +289,10 @@ class DBService:
             conn.commit()
             return cursor.rowcount
 
-    def get_recent_runs(self, n: int = 5) -> List[Tuple]:
+    def get_recent_runs(self, n: int = 5) -> List[sqlite3.Row]:
+        """Recent run_history rows, accessible by column name (e.g. row["match_rate"])."""
         with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute(
                 "SELECT * FROM run_history ORDER BY id DESC LIMIT ?", (n,)

@@ -261,8 +261,8 @@ class MessageService:
         matched_similarity = 0.0
 
         for candidate in candidates:
-            candidate_title = candidate[4]
-            candidate_google_id = candidate[3]
+            candidate_title = candidate["title"]
+            candidate_google_id = candidate["google_event_id"]
             similarity = difflib.SequenceMatcher(None, event['title'], candidate_title).ratio()
             if similarity > 0.6 or event['title'] in candidate_title or candidate_title in event['title']:
                 is_duplicate = True
