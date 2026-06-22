@@ -76,6 +76,13 @@ class WhatsAppSource:
         else:
             since_ts = int((datetime.now(timezone.utc) - timedelta(days=1)).timestamp())
 
+        # WAHA's `filter.timestamp.gte` is inclusive, so the cursor message (the
+        # newest one from the previous run) comes back every time. Telethon's
+        # min_id is exclusive; match that by dropping the boundary message_id.
+        # Filtering by id (not timestamp) keeps same-second siblings.
+        last_id = self.db_service.get_last_processed_message(f"whatsapp:{chat.chat_id}")
+        last_id = str(last_id) if last_id is not None else None
+
         params = {
             'limit': 1000,
             'filter.timestamp.gte': since_ts,
@@ -92,6 +99,9 @@ class WhatsAppSource:
         unified = []
         for msg in messages_data:
             msg_id = msg.get('id', '')
+            # Skip the inclusive-gte boundary message already processed last run.
+            if last_id is not None and str(msg_id) == last_id:
+                continue
             body = msg.get('body', '') or ''
             ts = msg.get('timestamp', 0)
             msg_time = datetime.fromtimestamp(ts, tz=timezone.utc)

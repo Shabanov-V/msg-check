@@ -3,9 +3,11 @@ import json
 import os
 import sys
 import unittest
+from datetime import datetime, timezone
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+from model.chatInfo import ChatInfo
 from source.whatsappSource import WhatsAppSource
 
 FIXTURE = os.path.join(os.path.dirname(__file__), 'fixtures', 'waha', 'group_messages.json')
@@ -70,6 +72,52 @@ class TestGroupTitleResolution(unittest.TestCase):
         chats = asyncio.run(src.get_target_chats())
         self.assertEqual(chats[0].chat_title, group_id)
         self.assertNotEqual(chats[0].chat_title, "")
+
+
+class _FakeDB:
+    """Minimal db_service stub returning a fixed cursor."""
+    def __init__(self, last_id=None, last_ts=None):
+        self._last_id = last_id
+        self._last_ts = last_ts
+
+    def get_last_processed_timestamp(self, dialog_id):
+        return self._last_ts
+
+    def get_last_processed_message(self, dialog_id):
+        return self._last_id
+
+
+class TestBoundaryExclusion(unittest.TestCase):
+    """WAHA filter.timestamp.gte is inclusive, so the cursor message comes back
+    every run. Regression: same WhatsApp message reported every hour."""
+
+    def _make_source(self, db, messages):
+        src = WhatsAppSource(
+            waha_url="http://x", waha_api_key="k", session_name="s",
+            target_label="Madrid", timezone_name="Europe/Madrid", db_service=db,
+        )
+        src._request = lambda method, path, **kwargs: messages
+        return src
+
+    def _recent(self, msg_id):
+        now = int(datetime.now(timezone.utc).timestamp())
+        return {"id": msg_id, "body": "meetup tonight", "timestamp": now, "type": "chat"}
+
+    def test_skips_cursor_boundary_message(self):
+        msgs = [self._recent("AAA"), self._recent("BBB")]
+        src = self._make_source(_FakeDB(last_id="AAA", last_ts=datetime.now(timezone.utc)), msgs)
+        chat = ChatInfo(source="whatsapp", chat_id="g@g.us", chat_title="Madrid")
+        result = asyncio.run(src.fetch_messages(chat))
+        ids = [m.message_id for m in result]
+        self.assertIn("BBB", ids)
+        self.assertNotIn("AAA", ids)
+
+    def test_keeps_all_when_no_cursor(self):
+        msgs = [self._recent("AAA"), self._recent("BBB")]
+        src = self._make_source(_FakeDB(last_id=None, last_ts=None), msgs)
+        chat = ChatInfo(source="whatsapp", chat_id="g@g.us", chat_title="Madrid")
+        ids = [m.message_id for m in asyncio.run(src.fetch_messages(chat))]
+        self.assertEqual(sorted(ids), ["AAA", "BBB"])
 
 
 if __name__ == '__main__':
