@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import sys
@@ -33,6 +34,42 @@ class TestExtractSenderName(unittest.TestCase):
         # Old code read msg['sender']['pushName'] which does not exist in GOWS
         for m in load_fixture():
             self.assertNotEqual(WhatsAppSource._extract_sender_name(m), '')
+
+
+class TestGroupTitleResolution(unittest.TestCase):
+    """GOWS /groups/{id} returns the group name under key `Name` (capital N),
+    not `subject`/`name`. Regression: blank chat_title in reports."""
+
+    def _make_source(self, group_info):
+        src = WhatsAppSource(
+            waha_url="http://x", waha_api_key="k", session_name="s",
+            target_label="Madrid", timezone_name="Europe/Madrid", db_service=None,
+        )
+        group_id = "120363246895560676@g.us"
+
+        def fake_request(method, path, **kwargs):
+            if path.endswith('/labels'):
+                return [{"id": "4", "name": "Madrid"}]
+            if path.endswith('/labels/4/chats'):
+                return [{"id": group_id}]
+            if path.endswith(f'/groups/{group_id}'):
+                return group_info
+            raise AssertionError(f"unexpected path {path}")
+
+        src._request = fake_request
+        return src, group_id
+
+    def test_resolves_group_name_from_gows_Name_key(self):
+        src, _ = self._make_source({"JID": "x", "Name": "Спроси Мадрид! 2"})
+        chats = asyncio.run(src.get_target_chats())
+        self.assertEqual(len(chats), 1)
+        self.assertEqual(chats[0].chat_title, "Спроси Мадрид! 2")
+
+    def test_falls_back_to_chat_id_when_no_name(self):
+        src, group_id = self._make_source({"JID": "x"})
+        chats = asyncio.run(src.get_target_chats())
+        self.assertEqual(chats[0].chat_title, group_id)
+        self.assertNotEqual(chats[0].chat_title, "")
 
 
 if __name__ == '__main__':

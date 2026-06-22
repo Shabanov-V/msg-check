@@ -47,7 +47,15 @@ class WhatsAppSource:
             if str(chat_id).endswith('@g.us'):
                 try:
                     group_info = self._request('GET', f'/api/{self.session_name}/groups/{chat_id}')
-                    chat_title = group_info.get('subject', '') or group_info.get('name', '')
+                    # GOWS exposes the group name under `Name` (capital N); older
+                    # engines used `subject`/`name`. Fall back to the chat id so the
+                    # report never renders a blank title.
+                    chat_title = (
+                        group_info.get('Name')
+                        or group_info.get('subject')
+                        or group_info.get('name')
+                        or str(chat_id)
+                    )
                 except Exception:
                     chat_title = str(chat_id)
             else:
