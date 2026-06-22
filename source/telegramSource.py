@@ -14,6 +14,7 @@ from model.chatInfo import ChatInfo
 from model.dialog import Dialog
 from model.dialogType import DialogType
 from service.dbService import DBService
+from service.util import Util
 
 
 class TelegramSource:
@@ -76,6 +77,7 @@ class TelegramSource:
                 text=text,
                 timestamp=m.date,
                 sender_name=sender_name,
+                media_type=self._detect_media(m),
                 raw=m,
             ))
         return unified
@@ -98,13 +100,15 @@ class TelegramSource:
         # Escape sender name
         safe_sender = escape(message.sender_name or "Unknown")
 
+        body = Util.render_body(message.text, message.media_type)
+
         if is_link:
             report = (
                 f'📌 <b>{safe_title}</b>\n'
                 f'👤 <b>From:</b> {safe_sender}\n'
                 f'🔗 <a href="{link}">Open in Telegram</a>\n'
                 f'📅 {dt_str}\n\n'
-                f'💬 {message.text}'
+                f'💬 {body}'
             )
         else:
             report = (
@@ -112,7 +116,7 @@ class TelegramSource:
                 f'👤 <b>From:</b> {safe_sender}\n'
                 f'📍 {link}\n'
                 f'📅 {dt_str}\n\n'
-                f'💬 {message.text}'
+                f'💬 {body}'
             )
         return report
 
@@ -178,6 +182,31 @@ class TelegramSource:
             return message.media.poll.question.text
         except AttributeError:
             return ""
+
+    @staticmethod
+    def _detect_media(message):
+        media = getattr(message, 'media', None)
+        if media is None:
+            return None
+        cls = type(media).__name__
+        if cls == 'MessageMediaPhoto':
+            return 'photo'
+        if cls in ('MessageMediaGeo', 'MessageMediaGeoLive', 'MessageMediaVenue'):
+            return 'location'
+        if cls == 'MessageMediaContact':
+            return 'contact'
+        if cls == 'MessageMediaDocument':
+            doc = getattr(media, 'document', None)
+            names = {type(a).__name__ for a in (getattr(doc, 'attributes', None) or [])}
+            if 'DocumentAttributeSticker' in names:
+                return 'sticker'
+            if 'DocumentAttributeVideo' in names:
+                return 'video'
+            if 'DocumentAttributeAudio' in names:
+                return 'audio'
+            return 'document'
+        # WebPage previews, polls, etc. carry their content in text already.
+        return None
 
     @staticmethod
     def _get_message_link(message):

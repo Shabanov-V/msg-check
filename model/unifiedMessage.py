@@ -12,4 +12,5 @@ class UnifiedMessage:
     text: str             # Message body text
     timestamp: datetime   # Message datetime (UTC)
     sender_name: Optional[str] = None  # Sender display name
+    media_type: Optional[str] = None   # "photo"/"video"/"audio"/"document"/"sticker"/"location"/"contact" or None
     raw: Any = None       # Original platform-specific object

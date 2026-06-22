@@ -1,14 +1,89 @@
 import re
 from html import escape
+from typing import Optional
 from zoneinfo import ZoneInfo
 from telethon import TelegramClient
 from telethon.tl.types import PeerChannel
 from datetime import timedelta
 from model.unifiedMessage import UnifiedMessage
 
+# Telegram hard limit on a single message body.
+MAX_MESSAGE_LEN = 4096
+
+# Human labels for media-only / media+caption messages.
+MEDIA_LABEL = {
+    "photo": "\U0001f5bc Photo",
+    "video": "\U0001f3ac Video",
+    "audio": "\U0001f3a7 Audio",
+    "document": "\U0001f4ce Document",
+    "sticker": "\U0001f600 Sticker",
+    "location": "\U0001f4cd Location",
+    "contact": "\U0001f464 Contact",
+}
+
+_TAG_RE = re.compile(r'<\s*(/?)\s*([a-zA-Z][a-zA-Z0-9-]*)[^>]*?(/?)\s*>')
+
+
 class Util:
 
     _offset = 0
+
+    @staticmethod
+    def render_body(text: str, media_type: Optional[str]) -> str:
+        """Compose the 💬 body, prefixing a media label when the message carries media.
+
+        Keeps a placeholder visible when a media message has no caption, so the
+        report never shows an empty body.
+        """
+        text = text or ""
+        if not media_type:
+            return text
+        label = MEDIA_LABEL.get(media_type, f"[{media_type}]")
+        return f"{label}\n{text}".rstrip() if text.strip() else label
+
+    @staticmethod
+    def truncate_html(html: str, max_len: int = MAX_MESSAGE_LEN) -> str:
+        """Truncate an HTML string to max_len without leaving broken/unbalanced tags.
+
+        Telegram rejects messages with dangling or unclosed entities, so we drop a
+        trailing partial tag and append closing tags for anything left open.
+        """
+        if html is None or len(html) <= max_len:
+            return html or ""
+
+        marker = "\n… [truncated]"
+        # Closing tags and the marker count toward the limit, so shrink the slice
+        # until body + marker + closing tags all fit. A few passes converge.
+        budget = max_len - len(marker)
+        for _ in range(5):
+            cut = html[:budget]
+
+            # Drop a dangling partial tag ('<' opened but not yet closed).
+            last_lt = cut.rfind('<')
+            last_gt = cut.rfind('>')
+            if last_lt > last_gt:
+                cut = cut[:last_lt]
+
+            # Walk tags to find which remain open.
+            stack: list = []
+            for m in _TAG_RE.finditer(cut):
+                closing, name, selfclose = m.group(1), m.group(2).lower(), m.group(3)
+                if selfclose:
+                    continue
+                if closing:
+                    if name in stack:
+                        while stack and stack.pop() != name:
+                            pass
+                else:
+                    stack.append(name)
+
+            suffix = marker + ''.join(f'</{name}>' for name in reversed(stack))
+            result = cut.rstrip() + suffix
+            if len(result) <= max_len:
+                return result
+            budget -= len(result) - max_len
+
+        return result[:max_len]
 
     @staticmethod
     def reset_offset():
@@ -20,15 +95,7 @@ class Util:
             return None
 
         report_text = source.get_message_reference(message)
-
-        # For WhatsApp or any other source, we should ensure the report is valid HTML
-        # if we are going to send it with parse_mode='html'.
-        # Since TelegramSource already returns HTML, we only need to worry about others.
-        if message.source != "telegram":
-            # Simple approach: escape everything from non-telegram sources
-            # But wait, source.get_message_reference(message) might have some structure.
-            # It's better to escape the components inside the source's get_message_reference.
-            pass
+        report_text = Util.truncate_html(report_text, MAX_MESSAGE_LEN)
 
         await client.send_message(
             PeerChannel(output_dialog_id),

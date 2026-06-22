@@ -9,6 +9,7 @@ from tenacity import retry, stop_after_attempt, wait_fixed
 from model.unifiedMessage import UnifiedMessage
 from model.chatInfo import ChatInfo
 from service.dbService import DBService
+from service.util import Util
 
 
 class WhatsAppSource:
@@ -110,6 +111,7 @@ class WhatsAppSource:
                 text=body,
                 timestamp=msg_time,
                 sender_name=sender_name,
+                media_type=self._detect_media(msg),
                 raw=msg,
             ))
 
@@ -125,19 +127,36 @@ class WhatsAppSource:
         sender_number = sender_alt.split('@', 1)[0]
         return info.get('PushName') or sender_number or ""
 
+    @staticmethod
+    def _detect_media(msg: dict) -> Optional[str]:
+        # WAHA message `type` distinguishes media from plain text ("chat").
+        mapping = {
+            'image': 'photo',
+            'video': 'video',
+            'audio': 'audio',
+            'ptt': 'audio',
+            'document': 'document',
+            'sticker': 'sticker',
+            'location': 'location',
+            'vcard': 'contact',
+            'contact': 'contact',
+        }
+        return mapping.get(msg.get('type'))
+
     def get_message_reference(self, message: UnifiedMessage) -> str:
         tz = ZoneInfo(self.timezone_name)
         dt_str = message.timestamp.astimezone(tz).strftime('%b %d, %H:%M')
 
         safe_title = escape(message.chat_title)
-        safe_text = escape(message.text)
         safe_sender = escape(message.sender_name or "Unknown")
+        safe_body = escape(Util.render_body(message.text, message.media_type))
 
         report = (
             f'📌 <b>{safe_title}</b>\n'
             f'👤 <b>From:</b> {safe_sender}\n'
+            f'📍 [WhatsApp] {safe_title}\n'
             f'📅 {dt_str}\n\n'
-            f'💬 {safe_text}'
+            f'💬 {safe_body}'
         )
         return report
 
