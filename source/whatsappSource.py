@@ -92,8 +92,7 @@ class WhatsAppSource:
             if msg_time < one_day_ago:
                 continue
 
-            # Extract sender name from WAHA payload
-            sender_name = msg.get('sender', {}).get('pushName') or ""
+            sender_name = self._extract_sender_name(msg)
 
             unified.append(UnifiedMessage(
                 source="whatsapp",
@@ -108,6 +107,15 @@ class WhatsAppSource:
 
         unified.sort(key=lambda m: m.timestamp)
         return unified
+
+    @staticmethod
+    def _extract_sender_name(msg: dict) -> str:
+        # WAHA GOWS payload carries the display name at _data.Info.PushName.
+        # Fall back to the sender phone number (SenderAlt / participant) when unset.
+        info = (msg.get('_data') or {}).get('Info') or {}
+        sender_alt = info.get('SenderAlt') or msg.get('participant') or ''
+        sender_number = sender_alt.split('@', 1)[0]
+        return info.get('PushName') or sender_number or ""
 
     def get_message_reference(self, message: UnifiedMessage) -> str:
         tz = ZoneInfo(self.timezone_name)
@@ -131,7 +139,7 @@ class WhatsAppSource:
 
     async def check_health(self) -> bool:
         try:
-            response = self._request('GET', f'/api/{self.session_name}/')
+            response = self._request('GET', f'/api/sessions/{self.session_name}')
             if isinstance(response, dict):
                 return response.get('status') == 'WORKING'
             if isinstance(response, list):
