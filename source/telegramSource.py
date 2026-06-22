@@ -116,6 +116,13 @@ class TelegramSource:
             )
         return report
 
+    def get_event_reference(self, message: UnifiedMessage) -> str:
+        # Source reference (see CONTEXT.md): the t.me link or "From chat:" line.
+        # No raw message → no locator.
+        if message.raw is None:
+            return ""
+        return self._get_message_link(message.raw)
+
     async def check_health(self) -> bool:
         return True
 

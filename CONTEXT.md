@@ -53,6 +53,12 @@ failures. Keep them separate — they have different causes and cures:
   *Distinct from* the **Stats report** (`ReportGenerator`) sent to the error
   channel, which carries only counts/diagnostics, not the messages themselves.
 
+- **Source reference** — A short, source-specific pointer back to a message's
+  origin (a `t.me` link, a `From chat:` line, a `[WhatsApp] {title}` tag),
+  appended to a calendar Event's description. Produced by each source adapter
+  behind the `MessageSource` seam (`get_event_reference`). *Distinct from* the
+  full **Reported feed** block, which is the source's `get_message_reference`.
+
 - **Junk** — A False positive that reaches the Reported feed: an irrelevant
   message forwarded as if Relevant. The dominant current pain. Reducing junk =
   raising Phase 1 **precision**.

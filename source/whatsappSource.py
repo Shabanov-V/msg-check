@@ -125,6 +125,10 @@ class WhatsAppSource:
         )
         return report
 
+    def get_event_reference(self, message: UnifiedMessage) -> str:
+        # Source reference (see CONTEXT.md): a WhatsApp chat tag.
+        return f"[WhatsApp] {message.chat_title}"
+
     async def check_health(self) -> bool:
         try:
             response = self._request('GET', f'/api/{self.session_name}/')

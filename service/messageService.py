@@ -211,8 +211,9 @@ class MessageService:
                 dialog_id = f"{msg.source}:{msg.chat_id}"
                 dialog_info = dialog_map.get((msg.source, msg.chat_id, msg.message_id))
                 chat_title = dialog_info["chat_title"] if dialog_info else msg.chat_title
+                source = source_map.get(msg.source)
                 try:
-                    await self._process_single_event(event, msg, dialog_id, chat_title, run_ctx)
+                    await self._process_single_event(event, msg, source, dialog_id, chat_title, run_ctx)
                 except Exception as e:
                     await self.client.send_message(
                         PeerChannel(self.env.error_dialog_id),
@@ -248,7 +249,7 @@ class MessageService:
 
         return len(all_messages), messages_found_count, events_found_count
 
-    async def _process_single_event(self, event: dict, message: UnifiedMessage, dialog_id: str, dialog_name: str, run_ctx: RunContext = None):
+    async def _process_single_event(self, event: dict, message: UnifiedMessage, source: Any, dialog_id: str, dialog_name: str, run_ctx: RunContext = None):
         """Dedup-check and create/store a single calendar event."""
         start_datetime = datetime.fromisoformat(event['start_datetime'])
         end_datetime = datetime.fromisoformat(event['end_datetime'])
@@ -286,15 +287,12 @@ class MessageService:
             )
             return
 
-        # Build description with source-appropriate reference
-        if message.source == "telegram" and message.raw is not None:
-            from source.telegramSource import TelegramSource
-            msg_link = TelegramSource._get_message_link(message.raw)
-            description = event['description'] + f'\n\n{msg_link}'
-        elif message.source == "whatsapp":
-            description = event['description'] + f'\n\n[WhatsApp] {message.chat_title}'
-        else:
-            description = event['description']
+        # Build description with the source's Source reference (see CONTEXT.md).
+        # The source adapter owns its locator format; "" means no locator.
+        ref = source.get_event_reference(message) if source else ""
+        description = event['description']
+        if ref:
+            description += f'\n\n{ref}'
 
         created_event = self.calendar_service.create_event(
             name=event['title'],

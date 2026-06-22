@@ -18,6 +18,11 @@ class MessageSource(Protocol):
         """Return a human-readable reference (link or text) for a message."""
         ...
 
+    def get_event_reference(self, message: UnifiedMessage) -> str:
+        """Return a short Source reference (link/locator) for a calendar Event
+        description, or "" when no locator is available. See CONTEXT.md."""
+        ...
+
     async def check_health(self) -> bool:
         """Verify the source is available. Return True if healthy."""
         ...
