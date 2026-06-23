@@ -133,113 +133,116 @@ class MessageService:
         messages_found_count = 0
         events_found_count = 0
 
-        if response is not None:
-            meta = response.get('_meta', {})
-            messages_found_count = len(response.get('results', []))
-            events_found_count = len(response.get('Events', []))
+        # findMessages returns a dict on success and raises on failure, so
+        # response is never None here. (ADR 0006 — the old None sentinel was
+        # the Silent-skip bug: it skipped this whole block yet still advanced
+        # the cursor below.)
+        meta = response.get('_meta', {})
+        messages_found_count = len(response.get('results', []))
+        events_found_count = len(response.get('Events', []))
 
-            # Record LLM metadata into RunContext
-            if run_ctx and meta:
-                run_ctx.llm_phase1_duration_sec = meta.get('phase1_duration_sec', 0.0)
-                run_ctx.llm_phase2_duration_sec = meta.get('phase2_duration_sec', 0.0)
-                run_ctx.llm_phase1_tokens = meta.get('phase1_tokens')
-                run_ctx.llm_phase2_tokens = meta.get('phase2_tokens')
+        # Record LLM metadata into RunContext
+        if run_ctx and meta:
+            run_ctx.llm_phase1_duration_sec = meta.get('phase1_duration_sec', 0.0)
+            run_ctx.llm_phase2_duration_sec = meta.get('phase2_duration_sec', 0.0)
+            run_ctx.llm_phase1_tokens = meta.get('phase1_tokens')
+            run_ctx.llm_phase2_tokens = meta.get('phase2_tokens')
 
-            # Resolve handles back to real messages (collision-safe join + recovery).
-            resolved = resolve_llm_results(ordered_messages, response)
+        # Resolve handles back to real messages (collision-safe join + recovery).
+        resolved = resolve_llm_results(ordered_messages, response)
 
-            # Record borderline messages
+        # Record borderline messages
+        if run_ctx:
+            for b_msg, exclusion_reason in resolved.borderline:
+                run_ctx.record_borderline(
+                    b_msg.message_id, b_msg.chat_title, b_msg.text, exclusion_reason,
+                )
+
+        # Hallucination recovery accounting
+        if resolved.recoveries:
             if run_ctx:
-                for b_msg, exclusion_reason in resolved.borderline:
-                    run_ctx.record_borderline(
-                        b_msg.message_id, b_msg.chat_title, b_msg.text, exclusion_reason,
-                    )
+                run_ctx.hallucination_recoveries = resolved.recoveries
+            await self.client.send_message(
+                PeerChannel(self.env.error_dialog_id),
+                f'Info: Recovered {resolved.recoveries} messages via text fallback.'
+            )
+        if resolved.still_missing:
+            if run_ctx:
+                run_ctx.still_missing_ids = resolved.still_missing
+            await self.client.send_message(
+                PeerChannel(self.env.error_dialog_id),
+                f'Warning: {len(resolved.still_missing)} reported messages could not be matched.\n'
+                f'Unresolved handles: {resolved.still_missing}'
+            )
 
-            # Hallucination recovery accounting
-            if resolved.recoveries:
-                if run_ctx:
-                    run_ctx.hallucination_recoveries = resolved.recoveries
-                await self.client.send_message(
-                    PeerChannel(self.env.error_dialog_id),
-                    f'Info: Recovered {resolved.recoveries} messages via text fallback.'
-                )
-            if resolved.still_missing:
-                if run_ctx:
-                    run_ctx.still_missing_ids = resolved.still_missing
-                await self.client.send_message(
-                    PeerChannel(self.env.error_dialog_id),
-                    f'Warning: {len(resolved.still_missing)} reported messages could not be matched.\n'
-                    f'Unresolved handles: {resolved.still_missing}'
-                )
-
-            # Handle found messages
-            dedup_keys = set()
-            for message_found, reason in resolved.matched:
-                dialog_info = dialog_map.get(
+        # Handle found messages
+        dedup_keys = set()
+        for message_found, reason in resolved.matched:
+            dialog_info = dialog_map.get(
+                (message_found.source, message_found.chat_id, message_found.message_id)
+            )
+            chat_title = dialog_info["chat_title"] if dialog_info else message_found.chat_title
+            if Util.is_message_in_list(message_found.text, sent_messages):
+                dedup_keys.add(
                     (message_found.source, message_found.chat_id, message_found.message_id)
                 )
-                chat_title = dialog_info["chat_title"] if dialog_info else message_found.chat_title
-                if Util.is_message_in_list(message_found.text, sent_messages):
-                    dedup_keys.add(
-                        (message_found.source, message_found.chat_id, message_found.message_id)
-                    )
-                    if run_ctx:
-                        run_ctx.record_dedup_skip(message_found.message_id, chat_title, message_found.text)
-                    continue
-                # Record match
                 if run_ctx:
-                    run_ctx.record_match(
-                        message_found.message_id, chat_title, message_found.text,
-                        reason,
-                        source=message_found.source, chat_id=message_found.chat_id,
-                    )
-                try:
-                    source = source_map.get(message_found.source)
-                    await Util.send_message_report(self.client, message_found, self.env.output_dialog_id, source)
-                except Exception as e:
-                    await self.client.send_message(
-                        PeerChannel(self.env.error_dialog_id),
-                        f'Error processing message {message_found.message_id},\n'
-                        f'From chat: {chat_title},\nError: {e}'
-                    )
-                    if run_ctx:
-                        run_ctx.record_error(f"Report error for {message_found.message_id}: {e}")
-                sent_messages.append(message_found.text)
-
-            # Handle events
-            for msg, event in resolved.events:
-                dialog_id = f"{msg.source}:{msg.chat_id}"
-                dialog_info = dialog_map.get((msg.source, msg.chat_id, msg.message_id))
-                chat_title = dialog_info["chat_title"] if dialog_info else msg.chat_title
-                source = source_map.get(msg.source)
-                try:
-                    await self._process_single_event(event, msg, source, dialog_id, chat_title, run_ctx)
-                except Exception as e:
-                    await self.client.send_message(
-                        PeerChannel(self.env.error_dialog_id),
-                        f'Error creating event from message {event["message_id"]},\n'
-                        f'From chat: {chat_title},\nError: {e}'
-                    )
-                    if run_ctx:
-                        run_ctx.record_error(f"Event creation error for {event['message_id']}: {e}")
-
-            # Persist a per-message decision log for retrospective FP/FN
-            # detection (see ADR 0004). Best-effort: never break the run.
-            try:
-                base_prompt = getattr(self.env, "base_prompt", "") or ""
-                prompt_version = hashlib.sha1(base_prompt.encode("utf-8")).hexdigest()[:8]
-                run_id = run_ctx.start_time.isoformat() if run_ctx else datetime.utcnow().isoformat()
-                rows = build_decision_rows(
-                    ordered_messages, resolved, dedup_keys,
-                    run_id=run_id,
-                    llm_model=getattr(self.env, "llm_model", ""),
-                    prompt_version=prompt_version,
+                    run_ctx.record_dedup_skip(message_found.message_id, chat_title, message_found.text)
+                continue
+            # Record match
+            if run_ctx:
+                run_ctx.record_match(
+                    message_found.message_id, chat_title, message_found.text,
+                    reason,
+                    source=message_found.source, chat_id=message_found.chat_id,
                 )
-                self.db_service.store_decision_log(rows)
+            try:
+                source = source_map.get(message_found.source)
+                await Util.send_message_report(self.client, message_found, self.env.output_dialog_id, source)
             except Exception as e:
-                logger.warning("Failed to write decision_log: %s", e)
+                await self.client.send_message(
+                    PeerChannel(self.env.error_dialog_id),
+                    f'Error processing message {message_found.message_id},\n'
+                    f'From chat: {chat_title},\nError: {e}'
+                )
                 if run_ctx:
-                    run_ctx.record_error(f"decision_log write failed: {e}")
+                    run_ctx.record_error(f"Report error for {message_found.message_id}: {e}")
+            sent_messages.append(message_found.text)
+
+        # Handle events
+        for msg, event in resolved.events:
+            dialog_id = f"{msg.source}:{msg.chat_id}"
+            dialog_info = dialog_map.get((msg.source, msg.chat_id, msg.message_id))
+            chat_title = dialog_info["chat_title"] if dialog_info else msg.chat_title
+            source = source_map.get(msg.source)
+            try:
+                await self._process_single_event(event, msg, source, dialog_id, chat_title, run_ctx)
+            except Exception as e:
+                await self.client.send_message(
+                    PeerChannel(self.env.error_dialog_id),
+                    f'Error creating event from message {event["message_id"]},\n'
+                    f'From chat: {chat_title},\nError: {e}'
+                )
+                if run_ctx:
+                    run_ctx.record_error(f"Event creation error for {event['message_id']}: {e}")
+
+        # Persist a per-message decision log for retrospective FP/FN
+        # detection (see ADR 0004). Best-effort: never break the run.
+        try:
+            base_prompt = getattr(self.env, "base_prompt", "") or ""
+            prompt_version = hashlib.sha1(base_prompt.encode("utf-8")).hexdigest()[:8]
+            run_id = run_ctx.start_time.isoformat() if run_ctx else datetime.utcnow().isoformat()
+            rows = build_decision_rows(
+                ordered_messages, resolved, dedup_keys,
+                run_id=run_id,
+                llm_model=getattr(self.env, "llm_model", ""),
+                prompt_version=prompt_version,
+            )
+            self.db_service.store_decision_log(rows)
+        except Exception as e:
+            logger.warning("Failed to write decision_log: %s", e)
+            if run_ctx:
+                run_ctx.record_error(f"decision_log write failed: {e}")
 
         # Update last processed message for each chat
         for dialog_id, latest_msg in chat_latest.items():

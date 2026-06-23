@@ -198,20 +198,29 @@ class TextAnalyzer:
 
         # Phase 1: Classification
         t0 = time.time()
+        # Phase 1 failure must propagate, not return None: the caller freezes the
+        # cursor and retries next run. Returning None here would look identical to
+        # "nothing relevant" and silently advance past unclassified messages
+        # (the Silent skip bug — ADR 0006).
         try:
             response, phase1 = self.__call_llm(self.base_prompt, text, self.PHASE1_SCHEMA)
         except Exception as e:
             logger.error("Failed to call LLM or parse Phase 1 response: %s", e)
-            return None
-            
+            raise
+
         phase1_duration = time.time() - t0
         phase1_tokens = self._extract_tokens(response)
         
-        if not phase1.get('found'):
-            return None 
-        
         results = phase1.get('results', [])
         borderline = phase1.get('borderline', [])
+        # `found` is redundant with len(results) and must not be load-bearing:
+        # branching on it dropped whole batches as a None "Silent skip" (ADR 0006).
+        # Key control flow off `results`; keep `found` only as a sanity check.
+        if bool(phase1.get('found')) != bool(results):
+            logger.warning(
+                "Phase 1 'found'=%s disagrees with len(results)=%d; trusting results",
+                phase1.get('found'), len(results),
+            )
         logger.info("Phase 1 — messages found: %d (%.1fs)", len(results), phase1_duration)
 
         # Filter results with explicit datetime for Phase 2

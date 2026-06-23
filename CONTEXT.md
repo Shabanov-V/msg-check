@@ -40,6 +40,14 @@ failures. Keep them separate — they have different causes and cures:
     text-match recovery path (see [[id-hallucination-recovery]] in design docs).
   - **Detail fabrication** — Phase 2 invents wrong dates/times or made-up events.
 
+- **Silent skip** — A fetched message whose **cursor advanced without a
+  decision_log row** ever being written. Distinct from Misclassification: the
+  message was never classified at all, so it is invisible to retrospective FP/FN
+  audit (no row to judge) and is never re-fetched. Caused when a whole batch
+  produces no audit rows yet the watermark still moves. The invariant that
+  forbids it: **a chat's cursor advances iff a decision_log row exists for every
+  message it passed** (see [[0006-cursor-decision-log-invariant]]).
+
 ## Pipeline terms
 
 - **Phase 1 (Classification)** — LLM decides which messages are Relevant.
