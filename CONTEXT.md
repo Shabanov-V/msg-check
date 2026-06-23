@@ -46,6 +46,27 @@ failures. Keep them separate — they have different causes and cures:
 - **Phase 2 (Extraction)** — For Relevant messages with an explicit datetime, LLM
   extracts structured Event records.
 
+## Prompt files
+
+The LLM prompts live as plain `.prompt` files in the repo root, **gitignored** —
+they are config/tuning, not published source. History is kept by **versioned
+filenames**, not git.
+
+- **Active prompts** — chosen via `.env`: `BASE_PROMPT_FILE` (Phase 1) and
+  `PHASE2_PROMPT_FILE` (Phase 2, defaults to `base_phase2.prompt`). `EnvLoader`
+  reads the files; `TextAnalyzer` injects them as the `system` message.
+- **Versioning** — Phase 1 is kept as numbered copies `base_phase1.vN.prompt`
+  (v1 = events only; v2 = events + Madrid RU-community chat invites). Bump =
+  copy active → `.v{N+1}`, edit, repoint `.env`. **Never overwrite** a shipped
+  vN; that is the history. Rollback = flip `.env` back.
+- **prompt_version** — at runtime `MessageService` stores `sha1(base_prompt)[:8]`
+  into each `decision_log` row, so every reported/skipped decision is tied to the
+  exact prompt text that produced it (see [[0004-decision-log-for-retrospective-fp-fn-detection]]).
+- **Schemas, not the prompt, fix the output shape** — `TextAnalyzer.PHASE1_SCHEMA`
+  / `PHASE2_SCHEMA` (strict `json_schema`) define the JSON contract. Editing a
+  prompt changes *what* gets classified, never the field set; new fields require
+  a schema change too.
+
 ## Output terms
 
 - **Reported feed** — The stream of forwarded Relevant messages sent to the user's
