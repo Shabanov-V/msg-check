@@ -24,6 +24,12 @@ live in code and `docs/`, not here.
 - **Event** — A reported message that additionally has an explicit start time,
   extracted in Phase 2 with title/description/start/end for the calendar.
 
+- **Channel invite** — A Criterion-5 reportable: a message whose *primary*
+  purpose is to recruit people into a chat/group/channel of the Madrid
+  Russian-speaking community. Exempt from the offline-event rule. A subscribe
+  line tacked onto news/ad content is NOT a channel invite — see
+  [[Subscribe-footer FP]].
+
 ## Failure modes (sharpening "hallucination")
 
 The user's umbrella term "hallucination" actually covers several distinct
@@ -32,6 +38,12 @@ failures. Keep them separate — they have different causes and cures:
 - **Misclassification** — The classifier is wrong about relevance. Two directions:
   - **False positive** — A Skipped message gets Reported (junk: ads, ticket
     resales, sports, online events, chitchat).
+    - **Subscribe-footer FP** — a named C5 over-trigger: a news article / digest /
+      ad ending in a boilerplate join line (`Подписывайтесь на канал @madridru`)
+      gets reported as a [[channel-invite]]. Cure: C5 fires only when the invite
+      is the message's *primary* purpose — strip the join sentence; if a
+      self-standing news/ad/digest remains, exclude (C6 wins). Resolved in
+      `base_phase1.v3.prompt`.
   - **False negative** — A Relevant message gets Skipped (a real invitation lost).
   *This is the dominant pain (both directions at once). It is NOT fabrication.*
 

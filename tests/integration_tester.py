@@ -15,6 +15,12 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from service.textAnalyzer import TextAnalyzer
 from model.envLoader import EnvLoader
 
+def resolve_test_key(env: EnvLoader) -> str:
+    """OpenRouter key for integration tests: prefer the dedicated
+    OPENROUTER_TEST_API_KEY, fall back to the production OPENROUTER_API_KEY."""
+    return env.get("OPENROUTER_TEST_API_KEY") or env.openrouter_api_key
+
+
 def generate_random_metadata(index: int, override_chat_title: str = None) -> Dict[str, Any]:
     """Generates random metadata for a message."""
     sources = ["telegram", "whatsapp"]
@@ -132,7 +138,7 @@ def run_tests(test_cases_file: str, prompt_file: str = None):
             print(f"Warning: Prompt file {prompt_file} not found. Using default.")
 
     analyzer = TextAnalyzer(
-        key=env.openrouter_api_key,
+        key=resolve_test_key(env),
         base_prompt=base_prompt,
         phase2_prompt=env.phase2_prompt,
         model=env.llm_model,
@@ -238,7 +244,7 @@ def run_eval(eval_file: str, prompt_file: str = None):
             print(f"Warning: prompt file {prompt_file} not found; using default.")
 
     analyzer = TextAnalyzer(
-        key=env.openrouter_api_key, base_prompt=base_prompt,
+        key=resolve_test_key(env), base_prompt=base_prompt,
         phase2_prompt=env.phase2_prompt, model=env.llm_model,
         timezone_name=env.timezone,
     )
